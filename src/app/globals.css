@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+:root {
+  --background: #181f1b;
+  --foreground: #ededed;
+  --surface-1: #23272b;
+
+  --danger: #ef4444;
+  --danger-light: #ef444444;
+  --danger-dark: #ef444422;
+}
+
+.theme-green {
+  --primary: #43e97b;
+  --primary-light: #43e97b44;
+  --primary-dark: #43e97b22;
+}
+
+.theme-purple {
+  --primary: #a855f7;
+  --primary-light: #a855f744;
+  --primary-dark: #a855f722;
+}
+
+.theme-orange {
+  --primary: #f97316;
+  --primary-light: #f9731644;
+  --primary-dark: #f9731622;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.dashboard-bg {
+  background: linear-gradient(135deg, var(--background) 0%, var(--surface-1) 100%);
+}
+.dashboard-title {
+  color: var(--primary);
+  text-shadow: 0 0 8px var(--primary-light), 0 0 16px var(--primary-dark);
+}
+.adguard-card {
+  background: var(--surface-1);
+  border-radius: 1rem;
+  box-shadow: 0 2px 16px var(--primary-dark);
+  padding: 1.5rem;
+  border: 1px solid var(--primary-dark);
+}
+.card-title {
+  color: var(--primary);
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+.text-primary {
+  color: var(--primary);
+  text-shadow: 0 0 4px var(--primary-light);
+}
+.bg-primary-dark {
+    background-color: var(--primary-dark);
+}
+.shadow-neon {
+  box-shadow: 0 0 8px var(--primary-dark), 0 0 16px var(--primary-dark);
+}
+.border-neon {
+  border-color: var(--primary-light);
+}
+.text-neon {
+  color: var(--primary);
+  text-shadow: 0 0 8px var(--primary-light), 0 0 16px var(--primary-dark);
+}
+.placeholder-neon::placeholder {
+  color: var(--primary);
+  opacity: 0.7;
+}
+
+/* New danger styles */
+.text-danger {
+    color: var(--danger);
+}
+.border-danger {
+    border-color: var(--danger-light);
+}
+.shadow-danger-neon {
+    box-shadow: 0 0 8px var(--danger-dark), 0 0 16px var(--danger-dark);
+}
+.bg-danger-dark {
+    background-color: var(--danger-dark);
+}
+
+/* Entferne alte Neon-Styles, alles ist jetzt zentral und einheitlich */
