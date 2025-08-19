@@ -19,11 +19,11 @@ export function SiteFooter() {
       </Link>
       <span className="hidden sm:inline text-white/30">•</span>
       <Link
-        href="https://github.com/chrizzo84/MYREPO"
+        href="https://github.com/chrizzo84/adguard-buddy"
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 hover:text-white transition-colors"
-        aria-label="Repository MYREPO"
+        aria-label="Repository adguard-buddy"
       >
         <Github className="h-4 w-4" aria-hidden="true" />
         <span>Repo</span>
