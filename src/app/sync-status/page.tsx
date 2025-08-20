@@ -286,7 +286,7 @@ export default function SyncStatusPage() {
 
     if (!masterSettings) return null;
 
-    const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig'];
+    const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'rewrites', 'blockedServices', 'accessList'];
 
     const differences = SYNCABLE_KEYS.filter(key => {
         if (!masterSettings[key] || !settings[key]) return false;

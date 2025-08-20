@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import logger from "../logger";
+import { components } from "../../../types/adguard";
 
 type Filter = {
     url: string;
@@ -199,6 +200,94 @@ const doSync = async (
             throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
         }
         log(`<- ${category} synced successfully.`);
+    } else if (category === 'accessList') {
+        log(`-> Fetching ${category} from master: ${sourceConnection.ip}`);
+        const masterRes = await fetchApi(sourceConnection, 'access/list');
+        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceConnection.ip}`);
+        const masterConfig = await masterRes.json();
+        log(`<- Fetched ${category} successfully.`);
+
+        log(`-> Pushing ${category} to replica: ${destinationConnection.ip}`);
+        const replicaRes = await fetchApi(destinationConnection, 'access/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(masterConfig),
+        });
+
+        if (!replicaRes.ok) {
+            const errorText = await replicaRes.text();
+            throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
+        }
+        log(`<- ${category} synced successfully.`);
+    } else if (category === 'blockedServices') {
+        log(`-> Fetching ${category} from master: ${sourceConnection.ip}`);
+        const masterRes = await fetchApi(sourceConnection, 'blocked_services/get');
+        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceConnection.ip}`);
+        const masterConfig = await masterRes.json();
+        log(`<- Fetched ${category} successfully.`);
+
+        log(`-> Pushing ${category} to replica: ${destinationConnection.ip}`);
+        const replicaRes = await fetchApi(destinationConnection, 'blocked_services/update', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(masterConfig),
+        });
+
+        if (!replicaRes.ok) {
+            const errorText = await replicaRes.text();
+            throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
+        }
+        log(`<- ${category} synced successfully.`);
+    } else if (category === 'rewrites') {
+        log(`-> Fetching rewrites from master: ${sourceConnection.ip}`);
+        const masterRes = await fetchApi(sourceConnection, 'rewrite/list');
+        if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceConnection.ip}`);
+        const masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
+        log(`<- Fetched rewrites successfully.`);
+
+        log(`-> Fetching rewrites from replica: ${destinationConnection.ip}`);
+        const replicaRes = await fetchApi(destinationConnection, 'rewrite/list');
+        if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destinationConnection.ip}`);
+        const replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
+        log(`<- Fetched rewrites successfully.`);
+
+        const masterRewriteSet = new Set(masterRewrites.map(r => JSON.stringify(r)));
+        const replicaRewriteMap = new Map(replicaRewrites.map(r => [JSON.stringify(r), r]));
+
+        for (const rewrite of replicaRewrites) {
+            if (!masterRewriteSet.has(JSON.stringify(rewrite))) {
+                log(`   - Removing rewrite: ${rewrite.domain} -> ${rewrite.answer}`);
+                const deleteRes = await fetchApi(destinationConnection, 'rewrite/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(rewrite),
+                });
+                if (!deleteRes.ok) {
+                    const errorText = await deleteRes.text();
+                    log(`   - FAILED to remove rewrite ${rewrite.domain}: ${deleteRes.status} ${errorText}`);
+                    throw new Error(`Failed to remove rewrite ${rewrite.domain} from replica ${destinationConnection.ip}`);
+                }
+                log(`   - Removed successfully.`);
+            }
+        }
+
+        for (const masterRewrite of masterRewrites) {
+            if (!replicaRewriteMap.has(JSON.stringify(masterRewrite))) {
+                log(`   + Adding new rewrite: ${masterRewrite.domain} -> ${masterRewrite.answer}`);
+                const addRes = await fetchApi(destinationConnection, 'rewrite/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(masterRewrite),
+                });
+                if (!addRes.ok) {
+                    const errorText = await addRes.text();
+                    log(`   + FAILED to add rewrite ${masterRewrite.domain}: ${addRes.status} ${errorText}`);
+                    throw new Error(`Failed to add rewrite ${masterRewrite.domain} to replica ${destinationConnection.ip}`);
+                }
+                log(`   + Added successfully.`);
+            }
+        }
+        log(`<- Rewrites sync completed.`);
     } else {
         throw new Error(`Sync for category '${category}' is not yet implemented.`);
     }
