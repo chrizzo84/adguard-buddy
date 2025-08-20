@@ -22,6 +22,7 @@ type SettingsValue =
 type Settings = Record<string, SettingsValue>;
 
 interface FilterListItem {
+    [key: string]: SettingsValue;
     name: string;
     url: string;
 }
@@ -46,7 +47,7 @@ const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
             return typeof item === 'object' && item !== null && 'url' in item && 'name' in item;
         };
 
-        if (isFilterList(a) || isFilterList(b)) {
+        if (isFilterList(a) && isFilterList(b)) {
             const toComparableString = (item: FilterListItem) => JSON.stringify({ name: item.name, url: item.url });
             const setA = new Set(a.map(toComparableString));
             const setB = new Set(b.map(toComparableString));

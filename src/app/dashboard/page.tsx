@@ -2,6 +2,7 @@
 import NavMenu from "../components/NavMenu";
 import { useState, useEffect, useCallback } from "react";
 import CryptoJS from "crypto-js";
+import { components } from "../../types/adguard";
 
 type Connection = {
   ip: string;
@@ -9,13 +10,23 @@ type Connection = {
   password: string;
 };
 
-type AdGuardStats = Record<string, unknown>;
+type AdGuardServerStatus = components['schemas']['ServerStatus'];
+type AdGuardStats = components['schemas']['Stats'];
+
 type Result = Connection & {
   status: string;
-  response: string;
+  response: string; // This is a JSON string of AdGuardServerStatus
   code?: number;
-  stats?: AdGuardStats;
+  stats?: AdGuardStats | null;
 };
+
+type CheckAdguardResponse = {
+    status: string;
+    response: string;
+    code?: number;
+    stats: AdGuardStats | null;
+}
+
 export default function Dashboard() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -144,9 +155,10 @@ export default function Dashboard() {
           });
           if (!r.ok) {
             const errorText = await r.text();
-            return { ...conn, status: "error", response: `Server Error: ${r.status} ${errorText}` };
+            return { ...conn, status: "error", response: `Server Error: ${r.status} ${errorText}`, code: r.status, stats: null };
           }
-          const data = await r.json();
+          
+          const data = await r.json() as CheckAdguardResponse;
           return { ...conn, ...data };
         })
       );
@@ -164,19 +176,19 @@ export default function Dashboard() {
   }, [fetchAll]);
 
   // Helper function for the status card
-  function AdGuardStatusCard({ data }: { data: AdGuardStats }) {
+  function AdGuardStatusCard({ data }: { data: AdGuardServerStatus }) {
     return (
       <div className="adguard-card">
         <h2 className="card-title">AdGuard Status</h2>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="text-gray-500">Version:</div>
-          <div className="text-primary">{typeof data.version === "string" ? data.version : "-"}</div>
+          <div className="text-primary">{data.version || "-"}</div>
           <div className="text-gray-500">Language:</div>
-          <div className="text-primary">{typeof data.language === "string" ? data.language : "-"}</div>
+          <div className="text-primary">{data.language || "-"}</div>
           <div className="text-gray-500">DNS Port:</div>
-          <div className="text-primary">{typeof data.dns_port === "number" ? data.dns_port : "-"}</div>
+          <div className="text-primary">{data.dns_port || "-"}</div>
           <div className="text-gray-500">HTTP Port:</div>
-          <div className="text-primary">{typeof data.http_port === "number" ? data.http_port : "-"}</div>
+          <div className="text-primary">{data.http_port || "-"}</div>
           <div className="text-gray-500">Protection:</div>
           <div className={data.protection_enabled ? "text-primary" : "text-danger"}>{data.protection_enabled ? "Active" : "Disabled"}</div>
           <div className="text-gray-500">DHCP:</div>
@@ -189,7 +201,7 @@ export default function Dashboard() {
           <div className="flex flex-wrap gap-2">
             {Array.isArray(data.dns_addresses)
               ? data.dns_addresses.map((addr, i) => (
-                  <span key={i} className="bg-gray-800 text-primary px-2 py-1 rounded text-xs font-mono border border-neon">{String(addr)}</span>
+                  <span key={i} className="bg-gray-800 text-primary px-2 py-1 rounded text-xs font-mono border border-neon">{addr}</span>
                 ))
               : <span className="text-gray-400">-</span>}
           </div>
@@ -198,6 +210,7 @@ export default function Dashboard() {
     );
   }
 
+  // Helper function for the stats card
   function AdGuardStatsCard({ stats }: { stats: AdGuardStats }) {
     if (!stats) return null;
 
@@ -206,7 +219,7 @@ export default function Dashboard() {
       { key: 'num_blocked_filtering', label: 'Blocked' },
       { key: 'num_replaced_safebrowsing', label: 'Blocked Malware' },
       { key: 'num_replaced_parental', label: 'Block parental' },
-    ];
+    ] as const;
 
     return (
       <div className="adguard-card mt-4">
@@ -216,11 +229,7 @@ export default function Dashboard() {
             <div key={key} className="contents">
               <div className="text-gray-500">{label}</div>
               <div className="text-primary break-all">
-                {typeof stats[key] === 'number'
-                  ? (stats[key] as number).toLocaleString()
-                  : stats[key] !== undefined
-                  ? String(stats[key])
-                  : '-'}
+                {stats[key] ? stats[key]!.toLocaleString() : '-'}
               </div>
             </div>
           ))}
@@ -262,7 +271,7 @@ export default function Dashboard() {
       {error && <p className="text-danger p-3 rounded-md bg-danger-dark">{error}</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {!isLoading && !error && results.map((res) => {
-          let parsed: Record<string, unknown> | null = null;
+          let parsed: AdGuardServerStatus | null = null;
           try {
             parsed = JSON.parse(res.response);
           } catch {
@@ -279,21 +288,19 @@ export default function Dashboard() {
                   <span className="text-xs text-gray-500">User:</span>
                   <span className="text-primary font-mono">{res.username}</span>
                 </div>
-                {parsed && parsed.version ? (
+                {parsed ? (
                   <AdGuardStatusCard data={parsed} />
                 ) : (
                   <pre className="text-xs bg-gray-800 rounded p-3 overflow-x-auto max-h-40 whitespace-pre-wrap text-primary border border-neon">
                     {res.response}
                   </pre>
                 )}
-                {/* Show statistics if available */}
                 {res.stats && <AdGuardStatsCard stats={res.stats} />}
                 {res.code && (
                   <div className="mt-2 text-right text-xs text-gray-500">HTTP: {res.code}</div>
                 )}
 
-                {/* Action button */}
-                {parsed && parsed.version && (
+                {parsed && (
                     <div className="mt-4 pt-4 border-t border-gray-700 flex justify-end">
                         <button
                             onClick={() => toggleProtection(res, !parsed.protection_enabled)}
