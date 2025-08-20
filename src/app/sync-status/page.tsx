@@ -143,8 +143,8 @@ export default function SyncStatusPage() {
     }
 
     try {
-        const sourceDecrypted = CryptoJS.AES.decrypt(masterConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
-        const destDecrypted = CryptoJS.AES.decrypt(replicaConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+    const sourceDecrypted = CryptoJS.AES.decrypt(masterConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+    const destDecrypted = CryptoJS.AES.decrypt(replicaConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
 
         const response = await fetch('/api/sync-category', {
             method: 'POST',
