@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       statsConfig: `/control/stats/config`,
     };
 
-    type EndpointResult = { key: string; data?: any; error?: string };
+    type EndpointResult = { key: string; data?: unknown; error?: string };
 
     const requests = Object.entries(endpoints).map(([key, endpoint]) => {
       const url = `http://${ip}:${port}${endpoint}`;
