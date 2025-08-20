@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import logger from "../logger";
 
 type Filter = {
     url: string;
@@ -15,35 +16,42 @@ type ConnectionDetails = {
 
 // Helper to create a streamable response
 const createStreamingResponse = (
-  cb: (log: (message: string) => void) => Promise<void>
+    cb: (log: (message: string) => void) => Promise<void>
 ) => {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const encoder = new TextEncoder();
-      const log = (message: string) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
-      };
+    const stream = new ReadableStream({
+        async start(controller) {
+            const encoder = new TextEncoder();
+            // Unified log function: logs to Winston and to stream
+            const log = (message: string, level: 'info' | 'warn' | 'error' = 'info') => {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
+                if (level === 'info') logger.info(message);
+                else if (level === 'warn') logger.warn(message);
+                else if (level === 'error') logger.error(message);
+            };
 
-      try {
-        await cb(log);
-        log("Done.");
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        log(`\nERROR: ${message}`);
-        console.error("Stream Error:", e);
-      } finally {
-        controller.close();
-      }
-    },
-  });
+            log("SYNC: Process started", 'info');
+            try {
+                await cb(log);
+                log("SYNC: Process finished successfully", 'info');
+                log("Done.", 'info');
+            } catch (e: unknown) {
+                const message = e instanceof Error ? e.message : String(e);
+                log(`SYNC ERROR: ${message}`, 'error');
+                log(`ERROR: ${message}`, 'error');
+                console.error("Stream Error:", e);
+            } finally {
+                controller.close();
+            }
+        },
+    });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-    },
-  });
+    return new Response(stream, {
+        headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    });
 };
 
 const doSync = async (

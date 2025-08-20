@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import logger from "../logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
       offset = 0,
       response_status = 'all'
     } = await req.json();
+
+    logger.info(`POST /query-log called for IP: ${ip}, limit: ${limit}, offset: ${offset}, response_status: ${response_status}`);
 
     const params = new URLSearchParams({
         limit: String(limit),
@@ -26,13 +29,26 @@ export async function POST(req: NextRequest) {
         "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
     }
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers,
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+    } catch (fetchError) {
+      logger.error(`Fetch error for AdGuard Home query-log: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+      return new NextResponse(
+        JSON.stringify({
+          status: "error",
+          message: `Failed to reach AdGuard Home: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`,
+        }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
+      logger.warn(`AdGuard Home responded with error in query-log: ${errorText}`);
       return new NextResponse(
         JSON.stringify({
           status: "error",
@@ -43,7 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-
+    logger.info(`Query log fetched successfully for IP: ${ip}`);
     return NextResponse.json(data);
 
   } catch (error) {
@@ -51,6 +67,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof Error) {
       errorMessage = error.message;
     }
+    logger.error(`Internal server error in /query-log: ${errorMessage}`);
     return new NextResponse(
       JSON.stringify({
         status: "error",
