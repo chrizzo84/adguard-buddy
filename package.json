@@ -7,7 +7,7 @@
     "build": "next build --no-lint",
     "start": "next start",
     "lint": "next lint --max-warnings 0",
-    "prepare": "husky"
+    "prepare": "husky && husky install"
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
@@ -25,7 +25,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
-    "husky": "^9.1.7",
+    "husky": "^8.0.0",
     "openapi-typescript": "^7.9.1",
     "tailwindcss": "^4",
     "typescript": "^5"

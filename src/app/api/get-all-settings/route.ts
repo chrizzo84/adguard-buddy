@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       statsConfig: `/control/stats/config`,
     };
 
-    type EndpointResult = { key: keyof AllSettings; data?: any; error?: string };
+  // Removed unused EndpointResult type
 
     const requests = Object.entries(endpoints).map(([key, endpoint]) => {
       const url = `http://${ip}:${port}${endpoint}`;
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
           }
           try {
             const data = await res.json();
-            return { key, data };
+            return { key, data: data as unknown };
           } catch (jsonError) {
             logger.error(`JSON parse error for endpoint ${endpoint}: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
             return { key, error: 'Failed to parse JSON' };
@@ -82,14 +82,32 @@ export async function POST(req: NextRequest) {
 
     const results = await Promise.all(requests);
 
-    const allSettings: Partial<AllSettings> = {};
+  const allSettings: Record<string, unknown> = {};
     const errors: Record<string, string> = {};
+
+
+    const typeMap: { [K in keyof AllSettings]: (data: unknown) => AllSettings[K] } = {
+      status: data => data as AllSettings['status'],
+      profile: data => data as AllSettings['profile'],
+      dns: data => data as AllSettings['dns'],
+      filtering: data => data as AllSettings['filtering'],
+      safebrowsing: data => data as AllSettings['safebrowsing'],
+      parental: data => data as AllSettings['parental'],
+      safesearch: data => data as AllSettings['safesearch'],
+      accessList: data => data as AllSettings['accessList'],
+      blockedServices: data => data as AllSettings['blockedServices'],
+      rewrites: data => data as AllSettings['rewrites'],
+      tls: data => data as AllSettings['tls'],
+      querylogConfig: data => data as AllSettings['querylogConfig'],
+      statsConfig: data => data as AllSettings['statsConfig'],
+    };
 
     results.forEach(result => {
       if (result.error) {
         errors[result.key] = result.error;
       } else if ('data' in result) {
-        allSettings[result.key as keyof AllSettings] = result.data;
+        const key = result.key as keyof AllSettings;
+        allSettings[key] = typeMap[key](result.data);
       }
     });
 
