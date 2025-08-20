@@ -1,6 +1,6 @@
 
 <p align="center">
-	<img src="public/globe.svg" alt="AdGuard Buddy Logo" width="120" />
+	<img src="src/app/icon.svg" alt="AdGuard Buddy Logo" width="120" />
 </p>
 
 # AdGuard Buddy
