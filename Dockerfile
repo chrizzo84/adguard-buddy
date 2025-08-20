@@ -27,14 +27,15 @@ COPY --from=builder /app ./
 # Install pnpm in production image
 RUN npm install -g pnpm@8
 
+
 # Set image labels for metadata
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
-LABEL org.opencontainers.image.created=$BUILD_DATE \
-	org.opencontainers.image.revision=$VCS_REF \
+LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+	org.opencontainers.image.revision="${VCS_REF}" \
 	org.opencontainers.image.source="https://github.com/chrizzo84/adguard-buddy" \
-	org.opencontainers.image.version=$VERSION
+	org.opencontainers.image.version="${VERSION}"
 
 ENV NODE_ENV=production
 
