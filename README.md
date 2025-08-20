@@ -41,6 +41,11 @@ pnpm install
 pnpm dev
 ```
 
+### Pre-Build Image:
+
+You can find it here:
+https://github.com/chrizzo84/adguard-buddy/pkgs/container/adguard-buddy
+
 ### Docker
 
 ```bash
