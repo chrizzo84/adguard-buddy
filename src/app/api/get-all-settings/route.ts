@@ -1,5 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "../logger";
+import { components } from "../../../types/adguard";
+
+type SafeBrowsingStatus = {
+    enabled?: boolean;
+};
+
+type ParentalStatus = {
+    enable?: boolean;
+    sensitivity?: number;
+};
+
+type AllSettings = {
+    status: components['schemas']['ServerStatus'];
+    profile: components['schemas']['ProfileInfo'];
+    dns: components['schemas']['DNSConfig'];
+    filtering: components['schemas']['FilterStatus'];
+    safebrowsing: SafeBrowsingStatus;
+    parental: ParentalStatus;
+    safesearch: components['schemas']['SafeSearchConfig'];
+    accessList: components['schemas']['AccessList'];
+    blockedServices: components['schemas']['BlockedServicesSchedule'];
+    rewrites: components['schemas']['RewriteList'];
+    tls: components['schemas']['TlsConfig'];
+    querylogConfig: components['schemas']['GetQueryLogConfigResponse'];
+    statsConfig: components['schemas']['GetStatsConfigResponse'];
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +56,7 @@ export async function POST(req: NextRequest) {
       statsConfig: `/control/stats/config`,
     };
 
-    type EndpointResult = { key: string; data?: unknown; error?: string };
+    type EndpointResult = { key: keyof AllSettings; data?: any; error?: string };
 
     const requests = Object.entries(endpoints).map(([key, endpoint]) => {
       const url = `http://${ip}:${port}${endpoint}`;
@@ -54,16 +80,16 @@ export async function POST(req: NextRequest) {
         });
     });
 
-    const results: EndpointResult[] = await Promise.all(requests);
+    const results = await Promise.all(requests);
 
-    const allSettings: Record<string, unknown> = {};
+    const allSettings: Partial<AllSettings> = {};
     const errors: Record<string, string> = {};
 
     results.forEach(result => {
       if (result.error) {
         errors[result.key] = result.error;
-      } else {
-        allSettings[result.key] = result.data;
+      } else if ('data' in result) {
+        allSettings[result.key as keyof AllSettings] = result.data;
       }
     });
 

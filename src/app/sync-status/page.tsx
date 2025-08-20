@@ -2,6 +2,7 @@
 import NavMenu from "../components/NavMenu";
 import { useState, useEffect, useCallback, useRef } from "react";
 import CryptoJS from "crypto-js";
+import { components } from "../../types/adguard";
 
 // Types
 type Connection = {
@@ -11,21 +12,18 @@ type Connection = {
   password: string; // encrypted
 };
 
+type FilterListItem = components['schemas']['Filter'];
+
 type SettingsValue =
   | string
   | number
   | boolean
   | null
   | { [key: string]: SettingsValue }
-  | SettingsValue[];
+  | SettingsValue[]
+  | FilterListItem;
 
 type Settings = Record<string, SettingsValue>;
-
-interface FilterListItem {
-    [key: string]: SettingsValue;
-    name: string;
-    url: string;
-}
 
 const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
     if (a === b) return true;
