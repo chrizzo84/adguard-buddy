@@ -91,3 +91,70 @@ body {
 }
 
 /* Entferne alte Neon-Styles, alles ist jetzt zentral und einheitlich */
+
+/* Scoped styles for rendered news markdown preview */
+.news-preview {
+  color: var(--foreground);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+.news-preview h1,
+.news-preview h2,
+.news-preview h3,
+.news-preview h4,
+.news-preview h5,
+.news-preview h6 {
+  color: var(--foreground);
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+.news-preview p {
+  margin-bottom: 0.9rem;
+}
+.news-preview hr {
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin: 1.25rem 0;
+}
+.news-preview ul,
+.news-preview ol {
+  margin: 0.5rem 0 0.9rem 1.25rem;
+}
+.news-preview li {
+  margin-bottom: 0.4rem;
+}
+.news-preview pre {
+  background: rgba(255,255,255,0.03);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  overflow: auto;
+  margin-bottom: 0.9rem;
+}
+.news-preview code {
+  background: rgba(255,255,255,0.04);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+.news-preview blockquote {
+  border-left: 3px solid rgba(255,255,255,0.06);
+  padding-left: 0.75rem;
+  color: rgba(255,255,255,0.8);
+  margin: 0 0 0.9rem 0;
+}
+.news-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.9rem;
+}
+.news-preview th,
+.news-preview td {
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 0.45rem 0.6rem;
+}
+.news-preview img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.6rem 0;
+}

@@ -1,6 +1,6 @@
 
 <p align="center">
-	<img src="src/app/icon.svg" alt="AdGuard Buddy Logo" width="120" />
+	<img src="/adguard-buddy-logo.svg" alt="AdGuard Buddy Logo" width="120" />
 </p>
 
 # AdGuard Buddy
@@ -90,6 +90,7 @@ The main API routes are located in `src/app/api/`:
 ---
 ---
 ![Statistics](pics/stats.png)
+![alt text](pics/combined_stats.png)
 ---
 ---
 ![Sync Status](pics/sync.png)
@@ -108,3 +109,5 @@ The main API routes are located in `src/app/api/`:
 ## 📄 License
 
 MIT
+
+# Test

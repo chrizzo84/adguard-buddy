@@ -12,6 +12,8 @@
   "dependencies": {
     "crypto-js": "^4.2.0",
     "lucide-react": "^0.540.0",
+  "marked": "^5.1.1",
+  "dompurify": "^3.0.5",
     "next": "15.4.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
