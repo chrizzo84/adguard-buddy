@@ -18,6 +18,8 @@ type QueryLogItem = {
   time: string;
   status: string;
   reason: string;
+  // When aggregated from multiple servers we attach the source server IP here
+  serverIp?: string;
 };
 
 type QueryLogResponse = {
@@ -30,7 +32,14 @@ export default function QueryLogPage() {
   // State
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
+  const [mode, setMode] = useState<'single' | 'combined'>('single');
   const [logs, setLogs] = useState<QueryLogItem[]>([]);
+  const [concurrency, setConcurrency] = useState<number>(5); // max concurrent requests in combined mode
+  const [perServerLimit, setPerServerLimit] = useState<number>(100);
+  const [combinedMax, setCombinedMax] = useState<number>(500);
+  const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
+  const [pageSize, setPageSize] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(0);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,50 +52,140 @@ export default function QueryLogPage() {
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const fetchLogs = useCallback(async (isPolling = false) => {
-    if (!selectedConnection) return;
+    // If single mode, behave like before and fetch only from selectedConnection
+    if (mode === 'single') {
+      if (!selectedConnection) return;
 
-    if (!isPolling) {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    try {
-      let decrypted = "";
-      try {
-        decrypted = CryptoJS.AES.decrypt(selectedConnection.password, encryptionKey).toString(CryptoJS.enc.Utf8);
-      } catch {
-        decrypted = "";
-      }
-
-      const response = await fetch('/api/query-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...selectedConnection,
-          password: decrypted,
-          response_status: filter,
-          limit: 100,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch logs');
-      }
-
-      const data: QueryLogResponse = await response.json();
-      setLogs(data.data || []);
-      setLastUpdated(new Date());
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message || 'An unknown error occurred.');
-      setLogs([]);
-    } finally {
       if (!isPolling) {
-        setIsLoading(false);
+        setIsLoading(true);
+      }
+      setError(null);
+
+      try {
+        let decrypted = "";
+        try {
+          decrypted = CryptoJS.AES.decrypt(selectedConnection.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+        } catch {
+          decrypted = "";
+        }
+
+        const response = await fetch('/api/query-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...selectedConnection,
+            password: decrypted,
+            response_status: filter,
+            limit: perServerLimit,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch logs');
+        }
+
+        const data: QueryLogResponse = await response.json();
+        // annotate with server ip for consistency
+  const annotated = (data.data || []).map((item) => ({ ...item, serverIp: selectedConnection.ip }));
+  setLogs(annotated);
+  // update serverCounts for single mode
+  setServerCounts({ [selectedConnection.ip]: annotated.length });
+        setLastUpdated(new Date());
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message || 'An unknown error occurred.');
+  setLogs([]);
+  setServerCounts({});
+      } finally {
+        if (!isPolling) {
+          setIsLoading(false);
+        }
+      }
+
+      return;
+    }
+
+    // Combined mode: fetch logs from all configured connections and merge
+    if (mode === 'combined') {
+      if (connections.length === 0) return;
+
+      if (!isPolling) setIsLoading(true);
+      setError(null);
+
+      try {
+  // Execute fetches in batches to limit concurrency.
+        const allResults: QueryLogItem[] = [];
+  const batchSize = Math.max(1, concurrency);
+
+        const fetchForConn = async (conn: Connection) => {
+          let decrypted = "";
+          try {
+            decrypted = CryptoJS.AES.decrypt(conn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+          } catch {
+            decrypted = "";
+          }
+
+          const response = await fetch('/api/query-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...conn,
+              password: decrypted,
+              response_status: filter,
+              limit: perServerLimit,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to fetch logs: ${errorText}`);
+          }
+
+          const data: QueryLogResponse = await response.json();
+          return (data.data || []).map((item) => ({ ...item, serverIp: conn.ip }));
+        };
+
+        for (let i = 0; i < connections.length; i += batchSize) {
+          const batch = connections.slice(i, i + batchSize);
+          const promises = batch.map(conn => fetchForConn(conn));
+          const settled = await Promise.allSettled(promises);
+
+          settled.forEach((res, idx) => {
+            const conn = batch[idx];
+            if (res.status === 'fulfilled') {
+              allResults.push(...res.value);
+            } else {
+              console.warn(`Failed to fetch logs from ${conn.ip}: ${res.reason}`);
+            }
+          });
+        }
+
+        // sort by time descending so newest appear first
+        allResults.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+        // compute per-server counts
+        const counts: Record<string, number> = {};
+        for (const item of allResults) {
+          const ip = item.serverIp || 'unknown';
+          counts[ip] = (counts[ip] || 0) + 1;
+        }
+        setServerCounts(counts);
+
+        // apply a combined maximum cap to avoid huge lists in the UI
+        const truncated = (combinedMax > 0) ? allResults.slice(0, combinedMax) : allResults;
+        setLogs(truncated);
+        setLastUpdated(new Date());
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message || 'An unknown error occurred while fetching combined logs.');
+  setLogs([]);
+  setServerCounts({});
+      } finally {
+        if (!isPolling) setIsLoading(false);
       }
     }
-  }, [selectedConnection, filter, encryptionKey]);
+  }, [selectedConnection, filter, encryptionKey, connections, mode, perServerLimit, concurrency, combinedMax]);
 
   const handleBlockUnblock = async (domain: string, action: 'block' | 'unblock') => {
     setShowLogModal(true);
@@ -132,16 +231,16 @@ export default function QueryLogPage() {
 
   // Effect for fetching on dependency change
   useEffect(() => {
-    if (selectedConnection) {
-      fetchLogs(false);
-    }
-  }, [selectedConnection, filter, fetchLogs]);
+  // In single mode we need a selected connection. In combined mode we fetch regardless.
+  if (mode === 'single' && !selectedConnection) return;
+  fetchLogs(false);
+  }, [selectedConnection, filter, fetchLogs, mode]);
 
   // Effect for polling
   useEffect(() => {
-    if (!selectedConnection || refreshInterval === 0) {
-      return; // Don't poll if no server selected or interval is off
-    }
+    // Don't poll if interval is off. In single mode require a selected connection.
+    if (refreshInterval === 0) return;
+    if (mode === 'single' && !selectedConnection) return;
 
     const intervalId = setInterval(() => {
       if (!isLoading) {
@@ -150,7 +249,7 @@ export default function QueryLogPage() {
     }, refreshInterval);
 
     return () => clearInterval(intervalId);
-  }, [selectedConnection, filter, isLoading, fetchLogs, refreshInterval]);
+  }, [selectedConnection, filter, isLoading, fetchLogs, refreshInterval, mode]);
 
   // Effect to load connections from server
   useEffect(() => {
@@ -208,45 +307,139 @@ export default function QueryLogPage() {
       { label: 'Off', value: 0 },
     ];
 
+    const ViewModeSwitcher = () => (
+      <div className="relative flex items-center justify-center bg-gray-900 p-1 rounded-full border border-white/10">
+        <span
+          className="absolute top-1 left-1 bottom-1 w-[calc(50%-0.25rem)] rounded-full bg-[var(--primary)] transition-transform duration-300 ease-in-out"
+          style={{ transform: mode === 'single' ? 'translateX(0%)' : 'translateX(100%)' }}
+        />
+        <button
+          onClick={() => setMode('single')}
+          className="relative z-10 w-1/2 py-2 text-sm font-bold transition-colors duration-300 rounded-full"
+        >
+          <span className={mode === 'single' ? 'text-gray-900' : 'text-gray-300'}>Single</span>
+        </button>
+        <button
+          onClick={() => setMode('combined')}
+          className="relative z-10 w-1/2 py-2 text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={connections.length < 2}
+        >
+          <span className={mode === 'combined' ? 'text-gray-900' : 'text-gray-300'}>Combined</span>
+        </button>
+      </div>
+    );
+
+    // We render both single and combined control sets but hide the inactive one
+    // using invisible + pointer-events-none so the overall card height stays stable
+    // when switching modes. Combined controls are arranged inline with min/max
+    // widths so they fit nicely on one row on desktop.
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2">
-                    Server
-                </label>
-                <select
-                    id="server-select"
-                    value={selectedConnection?.ip || ''}
-                    onChange={(e) => {
-                        const conn = connections.find(c => c.ip === e.target.value);
-                        setSelectedConnection(conn || null);
-                    }}
-                    className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-                    disabled={connections.length === 0}
-                >
-                    {connections.map(conn => (
-                        <option key={conn.ip} value={conn.ip}>
-                            {conn.ip} ({conn.username})
-                        </option>
-                    ))}
-                </select>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-start gap-4">
+          {/* Three equal columns: Switch | Server (or placeholder) | Refresh */}
+          <div className="flex-1 min-w-0">
+            <label className="block text-sm font-medium text-gray-400 mb-2 invisible">Mode</label>
+            <div className="w-full">
+              <ViewModeSwitcher />
             </div>
-            <div>
-                <label htmlFor="interval-select" className="block text-sm font-medium text-gray-400 mb-2">
-                    Refresh Interval
-                </label>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {mode === 'single' ? (
+              <div>
+                <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2">Server</label>
                 <select
-                    id="interval-select"
-                    value={refreshInterval}
-                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                    className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+                  id="server-select"
+                  value={selectedConnection?.ip || ''}
+                  onChange={(e) => {
+                    const conn = connections.find(c => c.ip === e.target.value);
+                    setSelectedConnection(conn || null);
+                  }}
+                  className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+                  disabled={connections.length === 0}
                 >
-                    {intervalOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
+                  {connections.map(conn => (
+                    <option key={conn.ip} value={conn.ip}>{conn.ip} ({conn.username})</option>
+                  ))}
                 </select>
-            </div>
+              </div>
+            ) : (
+              <div className="pt-6 text-sm text-gray-400">Combined: all servers</div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <label htmlFor="interval-select" className="block text-sm font-medium text-gray-400 mb-2">Refresh Interval</label>
+            <select
+              id="interval-select"
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+            >
+              {intervalOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {/* Controls row: render only the active set so single controls stay near the top */}
+        <div className="w-full">
+          {mode === 'combined' && (
+            <div>
+              <div className="flex flex-wrap items-start gap-4">
+                <div className="flex-1 min-w-[160px] max-w-[320px]">
+                <label htmlFor="concurrency-select" className="block text-sm font-medium text-gray-400 mb-2">Combined concurrency</label>
+                  <select id="concurrency-select" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon">
+                  {[1,2,3,5,8,10].map(n => (
+                    <option key={n} value={n}>{n} concurrent</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[140px] max-w-[240px]">
+                <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
+                <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                  {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[140px] max-w-[240px]">
+                <label className="text-sm font-medium text-gray-400 mb-2">Combined max</label>
+                <select value={combinedMax} onChange={(e) => setCombinedMax(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                  {[100,250,500,1000].map(n => <option key={n} value={n}>{n} total</option>)}
+                </select>
+              </div>
+
+              <div className="flex-1 min-w-[120px] max-w-[160px]">
+                <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
+        <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                  {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+      )}
+
+          {mode === 'single' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
+                <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                  {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                  {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -310,6 +503,7 @@ export default function QueryLogPage() {
         <table className="min-w-full text-sm text-left text-gray-300">
             <thead className="text-xs text-gray-400 uppercase bg-gray-900/50">
                 <tr>
+        <th scope="col" className="px-6 py-3">Server IP</th>
                     <th scope="col" className="px-6 py-3">Timestamp</th>
                     <th scope="col" className="px-6 py-3">Client</th>
                     <th scope="col" className="px-6 py-3">Domain</th>
@@ -322,6 +516,7 @@ export default function QueryLogPage() {
                     const isBlocked = !log.reason.startsWith('NotFiltered');
                     return (
                         <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
+          <td className="px-6 py-4 font-mono">{log.serverIp || selectedConnection?.ip || '-'}</td>
                             <td className="px-6 py-4">{new Date(log.time).toLocaleString()}</td>
                             <td className="px-6 py-4 font-mono">{log.client}</td>
                             <td className="px-6 py-4 break-all">{log.question.name}</td>
@@ -350,9 +545,16 @@ export default function QueryLogPage() {
     const searchTermLower = searchTerm.toLowerCase();
     return (
         log.question.name.toLowerCase().includes(searchTermLower) ||
-        log.client.toLowerCase().includes(searchTermLower)
+  log.client.toLowerCase().includes(searchTermLower) ||
+  (log.serverIp || '').toLowerCase().includes(searchTermLower)
     );
   });
+
+  // Ensure currentPage is within bounds when filteredLogs or pageSize change
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filteredLogs.length / pageSize) - 1);
+    if (currentPage > maxPage) setCurrentPage(maxPage);
+  }, [filteredLogs.length, pageSize, currentPage]);
 
   return (
     <div className="max-w-7xl mx-auto p-8">
@@ -389,9 +591,35 @@ export default function QueryLogPage() {
             </div>
           )}
         </div>
+        {/* Server counts display */}
+        <div className="mb-4">
+          <div className="flex flex-wrap gap-2">
+            {Object.keys(serverCounts).length === 0 ? (
+              <span className="text-xs text-gray-500">No per-server stats</span>
+            ) : (
+              Object.entries(serverCounts).map(([ip, count]) => (
+                <div key={ip} className="px-3 py-1 rounded-md bg-gray-800 text-xs text-gray-300 border border-gray-700">
+                  {ip}: {count}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
         {isLoading && <p className="text-center text-primary">Loading logs...</p>}
         {error && <p className="text-center text-danger">{error}</p>}
-        {!isLoading && !error && <LogTable logsToShow={filteredLogs} />}
+        {!isLoading && !error && (
+          <>
+            <LogTable logsToShow={filteredLogs.slice(currentPage * pageSize, (currentPage + 1) * pageSize)} />
+
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-xs text-gray-400">Showing {(currentPage * pageSize) + 1} - {Math.min((currentPage + 1) * pageSize, filteredLogs.length)} of {filteredLogs.length}</div>
+              <div className="flex gap-2">
+                <button disabled={currentPage === 0} onClick={() => setCurrentPage(p => Math.max(0, p - 1))} className={`px-3 py-1 rounded-md ${currentPage === 0 ? 'opacity-50 cursor-not-allowed' : 'bg-gray-800'}`}>Prev</button>
+                <button disabled={(currentPage + 1) * pageSize >= filteredLogs.length} onClick={() => setCurrentPage(p => p + 1)} className={`px-3 py-1 rounded-md ${((currentPage + 1) * pageSize >= filteredLogs.length) ? 'opacity-50 cursor-not-allowed' : 'bg-gray-800'}`}>Next</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
