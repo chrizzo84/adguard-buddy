@@ -364,7 +364,10 @@ export default function QueryLogPage() {
                 </select>
               </div>
             ) : (
-              <div className="pt-6 text-sm text-gray-400">Combined: all servers</div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Servers</label>
+                <div className="px-4 py-3 rounded-lg border-2 border-gray-800 bg-gray-900 text-gray-300">{connections.length} servers</div>
+              </div>
             )}
           </div>
 
@@ -387,39 +390,39 @@ export default function QueryLogPage() {
         <div className="w-full">
           {mode === 'combined' && (
             <div>
-              <div className="flex flex-wrap items-start gap-4">
-                <div className="flex-1 min-w-[160px] max-w-[320px]">
-                <label htmlFor="concurrency-select" className="block text-sm font-medium text-gray-400 mb-2">Combined concurrency</label>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                  <label htmlFor="concurrency-select" className="block text-sm font-medium text-gray-400 mb-2">Combined concurrency</label>
                   <select id="concurrency-select" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon">
-                  {[1,2,3,5,8,10].map(n => (
-                    <option key={n} value={n}>{n} concurrent</option>
-                  ))}
-                </select>
-              </div>
+                    {[1,2,3,5,8,10].map(n => (
+                      <option key={n} value={n}>{n} concurrent</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="flex-1 min-w-[140px] max-w-[240px]">
-                <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
-                <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
-                </select>
-              </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
+                  <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                    {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
+                  </select>
+                </div>
 
-              <div className="flex-1 min-w-[140px] max-w-[240px]">
-                <label className="text-sm font-medium text-gray-400 mb-2">Combined max</label>
-                <select value={combinedMax} onChange={(e) => setCombinedMax(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[100,250,500,1000].map(n => <option key={n} value={n}>{n} total</option>)}
-                </select>
-              </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-400 mb-2">Combined max</label>
+                  <select value={combinedMax} onChange={(e) => setCombinedMax(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                    {[100,250,500,1000].map(n => <option key={n} value={n}>{n} total</option>)}
+                  </select>
+                </div>
 
-              <div className="flex-1 min-w-[120px] max-w-[160px]">
-                <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
-        <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
-                </select>
+                <div>
+                  <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
+                  <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
+                    {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
-      )}
+          )}
 
           {mode === 'single' && (
             <div className="grid grid-cols-2 gap-4">
