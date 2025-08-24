@@ -1,5 +1,6 @@
 "use client";
 import NavMenu from "../components/NavMenu";
+import PageControls from './PageControls';
 import { useState, useEffect, useCallback, useRef } from "react";
 import CryptoJS from "crypto-js";
 
@@ -38,6 +39,8 @@ export default function QueryLogPage() {
   const [perServerLimit, setPerServerLimit] = useState<number>(100);
   const [combinedMax, setCombinedMax] = useState<number>(500);
   const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
+  const [serverColors, setServerColors] = useState<Record<string, string>>({});
+  const [editingServer, setEditingServer] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -187,6 +190,36 @@ export default function QueryLogPage() {
     }
   }, [selectedConnection, filter, encryptionKey, connections, mode, perServerLimit, concurrency, combinedMax]);
 
+  // helper: convert #rrggbb to rgba with given alpha
+  const hexToRgba = (hex: string, alpha = 1) => {
+    if (!hex) return undefined;
+    const h = hex.replace('#', '');
+    const normalized = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const bigint = parseInt(normalized, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  // load persisted colors from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('queryLogServerColors');
+      if (raw) setServerColors(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handlePickColor = (ip: string, color: string) => {
+    setServerColors(prev => {
+      const next = { ...prev, [ip]: color };
+      try { localStorage.setItem('queryLogServerColors', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   const handleBlockUnblock = async (domain: string, action: 'block' | 'unblock') => {
     setShowLogModal(true);
     setLogModalTitle(`Running ${action} on ${domain}...`);
@@ -298,153 +331,8 @@ export default function QueryLogPage() {
     );
   };
 
-  const PageControls = () => {
-    const intervalOptions = [
-      { label: '2 Seconds', value: 2000 },
-      { label: '5 Seconds', value: 5000 },
-      { label: '10 Seconds', value: 10000 },
-      { label: '30 Seconds', value: 30000 },
-      { label: 'Off', value: 0 },
-    ];
-
-    const ViewModeSwitcher = () => (
-      <div className="relative flex items-center justify-center bg-gray-900 p-0 rounded-full border border-white/10 h-12">
-        <span
-          className="absolute top-1 left-1 bottom-1 w-[calc(50%-0.25rem)] rounded-full bg-[var(--primary)] transition-transform duration-300 ease-in-out"
-          style={{ transform: mode === 'single' ? 'translateX(0%)' : 'translateX(100%)' }}
-        />
-        <button
-          onClick={() => setMode('single')}
-          className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full flex items-center justify-center"
-        >
-          <span className={mode === 'single' ? 'text-gray-900' : 'text-gray-300'}>Single</span>
-        </button>
-        <button
-          onClick={() => setMode('combined')}
-          className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          disabled={connections.length < 2}
-        >
-          <span className={mode === 'combined' ? 'text-gray-900' : 'text-gray-300'}>Combined</span>
-        </button>
-      </div>
-    );
-
-    // We render both single and combined control sets but hide the inactive one
-    // using invisible + pointer-events-none so the overall card height stays stable
-    // when switching modes. Combined controls are arranged inline with min/max
-    // widths so they fit nicely on one row on desktop.
-    return (
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-4">
-          {/* Three equal columns: Switch | Server (or placeholder) | Refresh */}
-          <div className="flex-1 min-w-0">
-            <label className="block text-sm font-medium text-gray-400 mb-2 invisible">Mode</label>
-            <div className="w-full">
-              <ViewModeSwitcher />
-            </div>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            {mode === 'single' ? (
-              <div>
-                <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2">Server</label>
-                <select
-                  id="server-select"
-                  value={selectedConnection?.ip || ''}
-                  onChange={(e) => {
-                    const conn = connections.find(c => c.ip === e.target.value);
-                    setSelectedConnection(conn || null);
-                  }}
-                  className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-                  disabled={connections.length === 0}
-                >
-                  {connections.map(conn => (
-                    <option key={conn.ip} value={conn.ip}>{conn.ip} ({conn.username})</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">Servers</label>
-                <div className="px-4 py-3 rounded-lg border-2 border-gray-800 bg-gray-900 text-gray-300">{connections.length} servers</div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <label htmlFor="interval-select" className="block text-sm font-medium text-gray-400 mb-2">Refresh Interval</label>
-            <select
-              id="interval-select"
-              value={refreshInterval}
-              onChange={(e) => setRefreshInterval(Number(e.target.value))}
-              className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-            >
-              {intervalOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Controls row: render only the active set so single controls stay near the top */}
-        <div className="w-full">
-          {mode === 'combined' && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div>
-                  <label htmlFor="concurrency-select" className="block text-sm font-medium text-gray-400 mb-2">Combined concurrency</label>
-                  <select id="concurrency-select" value={concurrency} onChange={(e) => setConcurrency(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon">
-                    {[1,2,3,5,8,10].map(n => (
-                      <option key={n} value={n}>{n} concurrent</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
-                  <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                    {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-400 mb-2">Combined max</label>
-                  <select value={combinedMax} onChange={(e) => setCombinedMax(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                    {[100,250,500,1000].map(n => <option key={n} value={n}>{n} total</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
-                  <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                    {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {mode === 'single' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-400 mb-2">Per-server limit</label>
-                <select value={perServerLimit} onChange={(e) => setPerServerLimit(Number(e.target.value))} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[25,50,100,200].map(n => <option key={n} value={n}>{n} per server</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
-                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(0); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  // Move PageControls outside component render to avoid re-renders during table polling
+  
 
   const FilterControls = () => {
     const filterOptions: { label: string; value: FilterStatus }[] = [
@@ -515,27 +403,31 @@ export default function QueryLogPage() {
                 </tr>
             </thead>
             <tbody>
-                {logsToShow.map((log, index) => {
-                    const isBlocked = !log.reason.startsWith('NotFiltered');
-                    return (
-                        <tr key={index} className="border-b border-gray-700 hover:bg-gray-800/50">
-          <td className="px-6 py-4 font-mono">{log.serverIp || selectedConnection?.ip || '-'}</td>
-                            <td className="px-6 py-4">{new Date(log.time).toLocaleString()}</td>
-                            <td className="px-6 py-4 font-mono">{log.client}</td>
-                            <td className="px-6 py-4 break-all">{log.question.name}</td>
-                            <td className="px-6 py-4">
-                                <StatusPill reason={log.reason} />
-                            </td>
-                            <td className="px-6 py-4">
-                                {isBlocked ? (
-                                    <button onClick={() => handleBlockUnblock(log.question.name, 'unblock')} className="px-3 py-1 text-xs text-primary border border-neon rounded-md hover:bg-gray-700" title="Remove this domain from the blocklist">Unblock</button>
-                                ) : (
-                                    <button onClick={() => handleBlockUnblock(log.question.name, 'block')} className="px-3 py-1 text-xs text-danger border border-danger rounded-md hover:bg-gray-700" title="Add this domain to the blocklist">Block</button>
-                                )}
-                            </td>
-                        </tr>
-                    );
-                })}
+        {logsToShow.map((log, index) => {
+          const isBlocked = !log.reason.startsWith('NotFiltered');
+          const ip = log.serverIp || selectedConnection?.ip || 'unknown';
+          const color = serverColors[ip];
+          const bgColor = color ? hexToRgba(color, 0.06) : undefined;
+          const leftBorder = color ? { borderLeft: `4px solid ${color}` } : {};
+          return (
+            <tr key={index} style={{ backgroundColor: bgColor, ...leftBorder }} className="border-b border-gray-700 hover:bg-gray-800/50">
+      <td className="px-6 py-4 font-mono">{ip}</td>
+              <td className="px-6 py-4">{new Date(log.time).toLocaleString()}</td>
+              <td className="px-6 py-4 font-mono">{log.client}</td>
+              <td className="px-6 py-4 break-all">{log.question.name}</td>
+              <td className="px-6 py-4">
+                <StatusPill reason={log.reason} />
+              </td>
+              <td className="px-6 py-4">
+                {isBlocked ? (
+                  <button onClick={() => handleBlockUnblock(log.question.name, 'unblock')} className="px-3 py-1 text-xs text-primary border border-neon rounded-md hover:bg-gray-700" title="Remove this domain from the blocklist">Unblock</button>
+                ) : (
+                  <button onClick={() => handleBlockUnblock(log.question.name, 'block')} className="px-3 py-1 text-xs text-danger border border-danger rounded-md hover:bg-gray-700" title="Add this domain to the blocklist">Block</button>
+                )}
+              </td>
+            </tr>
+          );
+        })}
             </tbody>
         </table>
         {logsToShow.length === 0 && !isLoading && (
@@ -571,7 +463,27 @@ export default function QueryLogPage() {
       <h1 className="text-3xl font-extrabold mb-8 text-center dashboard-title">Query Log</h1>
 
       <div className="adguard-card mb-8">
-        <PageControls />
+        <PageControls
+          mode={mode}
+          setMode={setMode}
+          connectionsCount={connections.length}
+          selectedIp={selectedConnection?.ip || ''}
+          onSelectIp={(ip) => {
+            const conn = connections.find(c => c.ip === ip);
+            setSelectedConnection(conn || null);
+          }}
+          refreshInterval={refreshInterval}
+          onSetRefreshInterval={(n) => setRefreshInterval(n)}
+          concurrency={concurrency}
+          setConcurrency={(n) => setConcurrency(n)}
+          perServerLimit={perServerLimit}
+          setPerServerLimit={(n) => setPerServerLimit(n)}
+          combinedMax={combinedMax}
+          setCombinedMax={(n) => setCombinedMax(n)}
+          pageSize={pageSize}
+          setPageSize={(n) => { setPageSize(n); setCurrentPage(0); }}
+          connections={connections.map(c => ({ ip: c.ip, username: c.username }))}
+        />
       </div>
 
       <div className="adguard-card">
@@ -594,19 +506,38 @@ export default function QueryLogPage() {
             </div>
           )}
         </div>
-        {/* Server counts display */}
+        {/* Server color chooser display */}
         <div className="mb-4">
-          <div className="flex flex-wrap gap-2">
-            {Object.keys(serverCounts).length === 0 ? (
-              <span className="text-xs text-gray-500">No per-server stats</span>
-            ) : (
-              Object.entries(serverCounts).map(([ip, count]) => (
-                <div key={ip} className="px-3 py-1 rounded-md bg-gray-800 text-xs text-gray-300 border border-gray-700">
-                  {ip}: {count}
-                </div>
-              ))
-            )}
-          </div>
+          {Object.keys(serverCounts).length === 0 ? (
+            <span className="text-xs text-gray-500">No per-server stats</span>
+          ) : (
+            <div className="flex flex-wrap gap-3 items-center">
+              {Object.entries(serverCounts).sort((a,b) => b[1] - a[1]).map(([ip, count]) => {
+                const color = serverColors[ip];
+                return (
+                  <div key={ip} className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingServer(ip)}
+                      title={`Choose color for ${ip}`}
+                      className="w-8 h-8 rounded-md border border-gray-700 flex items-center justify-center"
+                      style={{ backgroundColor: color || 'transparent' }}
+                    >
+                      {!color && <span className="text-xs text-gray-400">{count}</span>}
+                    </button>
+                    <div className="text-xs text-gray-300 font-mono">{ip}</div>
+                    <input
+                      type="color"
+                      value={color || '#000000'}
+                      onChange={(e) => handlePickColor(ip, e.target.value)}
+                      onBlur={() => setEditingServer(null)}
+                      style={{ display: editingServer === ip ? 'inline-block' : 'none' }}
+                      aria-label={`Color for ${ip}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         {isLoading && <p className="text-center text-primary">Loading logs...</p>}
         {error && <p className="text-center text-danger">{error}</p>}
