@@ -308,20 +308,20 @@ export default function QueryLogPage() {
     ];
 
     const ViewModeSwitcher = () => (
-      <div className="relative flex items-center justify-center bg-gray-900 p-1 rounded-full border border-white/10">
+      <div className="relative flex items-center justify-center bg-gray-900 p-0 rounded-full border border-white/10 h-12">
         <span
           className="absolute top-1 left-1 bottom-1 w-[calc(50%-0.25rem)] rounded-full bg-[var(--primary)] transition-transform duration-300 ease-in-out"
           style={{ transform: mode === 'single' ? 'translateX(0%)' : 'translateX(100%)' }}
         />
         <button
           onClick={() => setMode('single')}
-          className="relative z-10 w-1/2 py-2 text-sm font-bold transition-colors duration-300 rounded-full"
+          className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full flex items-center justify-center"
         >
           <span className={mode === 'single' ? 'text-gray-900' : 'text-gray-300'}>Single</span>
         </button>
         <button
           onClick={() => setMode('combined')}
-          className="relative z-10 w-1/2 py-2 text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+          className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           disabled={connections.length < 2}
         >
           <span className={mode === 'combined' ? 'text-gray-900' : 'text-gray-300'}>Combined</span>
