@@ -9,6 +9,7 @@ type Connection = {
   ip: string;
   username: string;
   password: string; // encrypted
+  color?: string;
 };
 
 type QueryLogItem = {
@@ -40,7 +41,7 @@ export default function QueryLogPage() {
   const [combinedMax, setCombinedMax] = useState<number>(500);
   const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
   const [serverColors, setServerColors] = useState<Record<string, string>>({});
-  const [editingServer, setEditingServer] = useState<string | null>(null);
+  const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -218,6 +219,45 @@ export default function QueryLogPage() {
       try { localStorage.setItem('queryLogServerColors', JSON.stringify(next)); } catch {}
       return next;
     });
+
+    // Also persist into the connections.json by updating the matching connection
+    setConnections(prev => {
+      const updated = prev.map(c => c.ip === ip ? { ...c, color } : c);
+      // fire-and-forget save
+      (async () => {
+        try {
+          await fetch('/api/save-connections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ connections: updated, masterServerIp }),
+          });
+        } catch {
+          // ignore network errors here
+        }
+      })();
+      return updated;
+    });
+  };
+
+  const clearAllColors = async () => {
+    setServerColors({});
+    try { localStorage.removeItem('queryLogServerColors'); } catch {}
+    // clear color fields in connections and save
+    const updated = connections.map(c => {
+      const copy = { ...c } as Connection;
+      delete copy.color;
+      return copy;
+    });
+    setConnections(updated);
+    try {
+      await fetch('/api/save-connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connections: updated, masterServerIp }),
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const handleBlockUnblock = async (domain: string, action: 'block' | 'unblock') => {
@@ -295,6 +335,7 @@ export default function QueryLogPage() {
           const data = await response.json();
           const conns = data.connections || [];
           setConnections(conns);
+          setMasterServerIp(data.masterServerIp || null);
           if (conns.length > 0) {
             setSelectedConnection(conns[0]);
           }
@@ -392,16 +433,16 @@ export default function QueryLogPage() {
   const LogTable = ({ logsToShow }: { logsToShow: QueryLogItem[] }) => (
     <div className="overflow-x-auto">
         <table className="min-w-full text-sm text-left text-gray-300">
-            <thead className="text-xs text-gray-400 uppercase bg-gray-900/50">
-                <tr>
-        <th scope="col" className="px-6 py-3">Server IP</th>
-                    <th scope="col" className="px-6 py-3">Timestamp</th>
-                    <th scope="col" className="px-6 py-3">Client</th>
-                    <th scope="col" className="px-6 py-3">Domain</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
-                    <th scope="col" className="px-6 py-3">Actions</th>
-                </tr>
-            </thead>
+      <thead className="text-xs text-gray-400 uppercase bg-gray-900/50">
+        <tr>
+          <th scope="col" className="px-6 py-3">Server IP</th>
+          <th scope="col" className="px-6 py-3">Timestamp</th>
+          <th scope="col" className="px-6 py-3">Client</th>
+          <th scope="col" className="px-6 py-3">Domain</th>
+          <th scope="col" className="px-6 py-3">Status</th>
+          <th scope="col" className="px-6 py-3">Actions</th>
+        </tr>
+      </thead>
             <tbody>
         {logsToShow.map((log, index) => {
           const isBlocked = !log.reason.startsWith('NotFiltered');
@@ -463,7 +504,9 @@ export default function QueryLogPage() {
       <h1 className="text-3xl font-extrabold mb-8 text-center dashboard-title">Query Log</h1>
 
       <div className="adguard-card mb-8">
-        <PageControls
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <PageControls
           mode={mode}
           setMode={setMode}
           connectionsCount={connections.length}
@@ -483,21 +526,21 @@ export default function QueryLogPage() {
           pageSize={pageSize}
           setPageSize={(n) => { setPageSize(n); setCurrentPage(0); }}
           connections={connections.map(c => ({ ip: c.ip, username: c.username }))}
-        />
+            />
+          </div>
+        </div>
       </div>
 
       <div className="adguard-card">
         <div className="flex justify-between items-center mb-8 gap-4">
-          <div className="flex-1">
+          <div className="flex items-center gap-4">
             <FilterControls />
-          </div>
-          <div className="flex-1">
             <input
               type="text"
               placeholder="Search domain or client..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+              className="w-80 px-4 py-2 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
             />
           </div>
           {lastUpdated && (
@@ -512,30 +555,56 @@ export default function QueryLogPage() {
             <span className="text-xs text-gray-500">No per-server stats</span>
           ) : (
             <div className="flex flex-wrap gap-3 items-center">
-              {Object.entries(serverCounts).sort((a,b) => b[1] - a[1]).map(([ip, count]) => {
-                const color = serverColors[ip];
-                return (
-                  <div key={ip} className="flex items-center gap-2">
-                    <button
-                      onClick={() => setEditingServer(ip)}
-                      title={`Choose color for ${ip}`}
-                      className="w-8 h-8 rounded-md border border-gray-700 flex items-center justify-center"
-                      style={{ backgroundColor: color || 'transparent' }}
-                    >
-                      {!color && <span className="text-xs text-gray-400">{count}</span>}
-                    </button>
-                    <div className="text-xs text-gray-300 font-mono">{ip}</div>
-                    <input
-                      type="color"
-                      value={color || '#000000'}
-                      onChange={(e) => handlePickColor(ip, e.target.value)}
-                      onBlur={() => setEditingServer(null)}
-                      style={{ display: editingServer === ip ? 'inline-block' : 'none' }}
-                      aria-label={`Color for ${ip}`}
-                    />
-                  </div>
-                );
-              })}
+              {(() => {
+                // Build ordered list: master first (if present), then connections in JSON order.
+                const countsEntries = Object.entries(serverCounts);
+                // preserve JSON order of connections
+                const connOrder = connections.map(c => c.ip);
+                const seen = new Set<string>();
+                const ordered: Array<{ ip: string; count: number }> = [];
+
+                // add master first if present and present in counts
+                if (masterServerIp && serverCounts[masterServerIp] !== undefined) {
+                  ordered.push({ ip: masterServerIp, count: serverCounts[masterServerIp] });
+                  seen.add(masterServerIp);
+                }
+
+                // add in the order defined by connections.json
+                for (const ip of connOrder) {
+                  if (seen.has(ip)) continue;
+                  if (serverCounts[ip] !== undefined) {
+                    ordered.push({ ip, count: serverCounts[ip] });
+                    seen.add(ip);
+                  }
+                }
+
+                // any remaining hosts (unexpected) appended last
+                for (const [ip, count] of countsEntries) {
+                  if (!seen.has(ip)) ordered.push({ ip, count });
+                }
+
+                return ordered.map(({ ip }) => {
+                  const color = serverColors[ip];
+                  return (
+                    <div key={ip} className="flex items-center gap-2">
+                      <div className="relative w-8 h-8">
+                        <div className="w-8 h-8 rounded-md border border-gray-700" style={{ backgroundColor: color || 'transparent' }} />
+                        <input
+                          type="color"
+                          value={color || '#000000'}
+                          onChange={(e) => handlePickColor(ip, e.target.value)}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 m-0 rounded-md"
+                          aria-label={`Color for ${ip}`}
+                        />
+                      </div>
+                      <div className="text-xs text-gray-300 font-mono">{ip}</div>
+                    </div>
+                  );
+                });
+              })()}
+              <div className="ml-2">
+                <button onClick={() => clearAllColors()} className="px-3 py-1.5 text-sm font-bold text-primary bg-gray-800 rounded-md border-neon border hover:bg-gray-700 transition-all duration-300 shadow-neon">Clear colors</button>
+              </div>
             </div>
           )}
         </div>
