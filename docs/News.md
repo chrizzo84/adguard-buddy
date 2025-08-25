@@ -8,14 +8,14 @@ New improvements to the Query Log make multi-server troubleshooting much easier:
 
 - **Single / Combined view**: choose between a single-server view or a combined view that aggregates logs from all configured servers.
 - **Server IP in the table**: each log row now displays the source server IP so you can immediately see which server emitted the request.
-- **Per-server Color Chooser**: click the color swatch next to a server and pick a color — rows from that server are subtly highlighted in the table.
 - **Persistence**: selected colors are saved into the connections JSON file (`.data/connections.json`) so they survive reloads.
-- **Clear colors**: a "Clear colors" button resets all colors.
+- **Per-server Color Chooser**: click the color swatch next to a server and pick a color — rows from that server are subtly highlighted in the table.
+![Color Chooser](../pics/color_combined.png) 
 
 ## ⚡ Performance & UX
 
 - **Batched fetching & concurrency controls**: combined fetches are executed in configurable batches with limited parallelism so the client stays responsive.
-- **Per-server / Combined limits & pagination**: controls for per-server limits, combined max, and pagination keep the UI usable with many servers.
+- **Per-server / Combined limits**: controls for per-server limits, combined max.
 - **Stable controls**: the controls bar (view mode, server select, refresh interval) was refactored and memoized so polling only updates the table — dropdowns keep their selection and focus.
 
 ## 🧩 Technical details & files
