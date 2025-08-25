@@ -104,12 +104,7 @@ const PageControls = React.memo(function PageControls(props: Props) {
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
-                <select value={props.pageSize} onChange={(e) => { props.setPageSize(Number(e.target.value)); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                  {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
-                </select>
-              </div>
+              {/* Page size removed - infinite scroll used instead */}
             </div>
           </div>
         )}
@@ -123,12 +118,7 @@ const PageControls = React.memo(function PageControls(props: Props) {
               </select>
             </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-400 mb-2">Page size</label>
-              <select value={props.pageSize} onChange={(e) => { props.setPageSize(Number(e.target.value)); }} className="w-full px-4 py-3 rounded-lg bg-gray-900 border-2 border-neon text-primary">
-                {[10,25,50].map(n => <option key={n} value={n}>{n} rows</option>)}
-              </select>
-            </div>
+            {/* Page size removed - infinite scroll used instead */}
           </div>
         )}
       </div>

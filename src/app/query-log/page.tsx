@@ -43,7 +43,8 @@ export default function QueryLogPage() {
   const [serverColors, setServerColors] = useState<Record<string, string>>({});
   const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
-  const [currentPage, setCurrentPage] = useState<number>(0);
+  // visibleCount controls how many rows are currently shown; infinite scroll increases this
+  const [visibleCount, setVisibleCount] = useState<number>(25);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -324,6 +325,8 @@ export default function QueryLogPage() {
     return () => clearInterval(intervalId);
   }, [selectedConnection, filter, isLoading, fetchLogs, refreshInterval, mode]);
 
+  // ... infinite scroll effect will be injected after filteredLogs is declared
+
   // Effect to load connections from server
   useEffect(() => {
     const fetchConnections = async () => {
@@ -486,11 +489,31 @@ export default function QueryLogPage() {
     );
   });
 
-  // Ensure currentPage is within bounds when filteredLogs or pageSize change
+  // Ensure visibleCount is within bounds when filteredLogs or pageSize change
   useEffect(() => {
-    const maxPage = Math.max(0, Math.ceil(filteredLogs.length / pageSize) - 1);
-    if (currentPage > maxPage) setCurrentPage(maxPage);
-  }, [filteredLogs.length, pageSize, currentPage]);
+    const minVisible = pageSize;
+    if (visibleCount < minVisible) setVisibleCount(minVisible);
+    if (visibleCount > filteredLogs.length) setVisibleCount(filteredLogs.length);
+  }, [filteredLogs.length, pageSize, visibleCount]);
+
+  // Infinite scroll: increase visibleCount when scrolling near bottom
+  useEffect(() => {
+    const onScroll = () => {
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const nearBottom = document.body.offsetHeight - 300; // px from bottom
+      if (scrollPosition >= nearBottom) {
+        setVisibleCount(c => Math.min(filteredLogs.length, c + pageSize));
+      }
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [pageSize, filteredLogs.length]);
+
+  // Reset visibleCount when logs, filter or search change to show top items
+  useEffect(() => {
+    setVisibleCount(pageSize);
+  }, [logs, filter, searchTerm, pageSize, mode]);
 
   return (
     <div className="max-w-7xl mx-auto p-8">
@@ -524,7 +547,7 @@ export default function QueryLogPage() {
           combinedMax={combinedMax}
           setCombinedMax={(n) => setCombinedMax(n)}
           pageSize={pageSize}
-          setPageSize={(n) => { setPageSize(n); setCurrentPage(0); }}
+          setPageSize={(n) => { setPageSize(n); }}
           connections={connections.map(c => ({ ip: c.ip, username: c.username }))}
             />
           </div>
@@ -612,13 +635,12 @@ export default function QueryLogPage() {
         {error && <p className="text-center text-danger">{error}</p>}
         {!isLoading && !error && (
           <>
-            <LogTable logsToShow={filteredLogs.slice(currentPage * pageSize, (currentPage + 1) * pageSize)} />
+            <LogTable logsToShow={filteredLogs.slice(0, visibleCount)} />
 
             <div className="flex items-center justify-between mt-4">
-              <div className="text-xs text-gray-400">Showing {(currentPage * pageSize) + 1} - {Math.min((currentPage + 1) * pageSize, filteredLogs.length)} of {filteredLogs.length}</div>
+              <div className="text-xs text-gray-400">Showing 1 - {Math.min(visibleCount, filteredLogs.length)} of {filteredLogs.length}</div>
               <div className="flex gap-2">
-                <button disabled={currentPage === 0} onClick={() => setCurrentPage(p => Math.max(0, p - 1))} className={`px-3 py-1 rounded-md ${currentPage === 0 ? 'opacity-50 cursor-not-allowed' : 'bg-gray-800'}`}>Prev</button>
-                <button disabled={(currentPage + 1) * pageSize >= filteredLogs.length} onClick={() => setCurrentPage(p => p + 1)} className={`px-3 py-1 rounded-md ${((currentPage + 1) * pageSize >= filteredLogs.length) ? 'opacity-50 cursor-not-allowed' : 'bg-gray-800'}`}>Next</button>
+                <button disabled={visibleCount >= filteredLogs.length} onClick={() => setVisibleCount(c => Math.min(filteredLogs.length, c + pageSize))} className={`px-3 py-1 rounded-md ${visibleCount >= filteredLogs.length ? 'opacity-50 cursor-not-allowed' : 'bg-gray-800'}`}>Load more</button>
               </div>
             </div>
           </>
