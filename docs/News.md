@@ -1,5 +1,14 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**August 25, 2025**
+
+## 🛠️ News Popup: Single Close Button (×)
+
+- We've adjusted the in-app "What's New" popup:
+	- Removed: the footer "Got it!" button.
+	- Added: a single, visible close button in the top-right (×), with improved contrast for both light and dark themes.
+- Why: clearer interaction and better readability — users now close the popup via the top-right ×.
+
 **August 24, 2025**
 
 ## 🧭 Query Log: Combined View, Server IPs & Color Highlighting
@@ -10,7 +19,7 @@ New improvements to the Query Log make multi-server troubleshooting much easier:
 - **Server IP in the table**: each log row now displays the source server IP so you can immediately see which server emitted the request.
 - **Persistence**: selected colors are saved into the connections JSON file (`.data/connections.json`) so they survive reloads.
 - **Per-server Color Chooser**: click the color swatch next to a server and pick a color — rows from that server are subtly highlighted in the table.
-![Color Chooser](../pics/color_combined.png) 
+![Color Chooser](/api/news-img?name=color_combined.png) 
 
 ## ⚡ Performance & UX
 
