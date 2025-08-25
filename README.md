@@ -1,6 +1,5 @@
-
 <p align="center">
-	<img src="/adguard-buddy-logo.svg" alt="AdGuard Buddy Logo" width="120" />
+	<img src="src/app/icon.svg" alt="AdGuard Buddy Logo" width="120" />
 </p>
 
 # AdGuard Buddy
@@ -110,4 +109,3 @@ The main API routes are located in `src/app/api/`:
 
 MIT
 
-# Test

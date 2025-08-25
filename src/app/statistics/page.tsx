@@ -112,12 +112,10 @@ export default function StatisticsPage() {
 
   // UI Components
   const ServerSelector = () => (
-    <div className="mb-4 md:mb-0 md:flex md:items-center">
-      {/* visual label only on small screens; on md+ we keep an sr-only label so the select can align with the switcher */}
-      <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2 md:hidden">
+    <div className="mb-4">
+      <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2">
         Server
       </label>
-      <span className="sr-only">Server</span>
       <select
         id="server-select"
         value={selectedConnection?.ip || ''}
@@ -125,7 +123,7 @@ export default function StatisticsPage() {
           const conn = connections.find(c => c.ip === e.target.value);
           setSelectedConnection(conn || null);
         }}
-        className="w-full px-4 py-0 h-10 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+        className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
         disabled={connections.length === 0}
       >
         {connections.map(conn => (
@@ -138,20 +136,20 @@ export default function StatisticsPage() {
   );
 
   const ViewModeSwitcher = () => (
-    <div className="relative flex items-center justify-center bg-gray-900 p-1 rounded-full border border-white/10 h-10">
+    <div className="relative flex items-center justify-center bg-gray-900 p-0 rounded-full border border-white/10 h-12">
       <span
         className="absolute top-1 left-1 bottom-1 w-[calc(50%-0.25rem)] rounded-full bg-[var(--primary)] transition-transform duration-300 ease-in-out"
         style={{ transform: viewMode === 'single' ? 'translateX(0%)' : 'translateX(100%)' }}
       />
       <button
         onClick={() => setViewMode('single')}
-        className="relative z-10 w-1/2 h-full flex items-center justify-center text-sm font-bold transition-colors duration-300 rounded-full"
+        className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full flex items-center justify-center"
       >
         <span className={viewMode === 'single' ? 'text-gray-900' : 'text-gray-300'}>Single Server</span>
       </button>
       <button
         onClick={() => setViewMode('combined')}
-        className="relative z-10 w-1/2 h-full flex items-center justify-center text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+        className="relative z-10 w-1/2 h-full text-sm font-bold transition-colors duration-300 rounded-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
         disabled={connections.length < 2}
       >
         <span className={viewMode === 'combined' ? 'text-gray-900' : 'text-gray-300'}>Combined</span>
@@ -204,8 +202,11 @@ export default function StatisticsPage() {
       </div>
 
       <div className="adguard-card mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          <ViewModeSwitcher />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-2 invisible">Mode</label>
+            <ViewModeSwitcher />
+          </div>
           {viewMode === 'single' && <ServerSelector />}
         </div>
          {viewMode === 'combined' && (
