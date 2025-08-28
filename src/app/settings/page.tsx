@@ -15,7 +15,6 @@ type Connection = {
 
 type FormState = {
   target: string;
-  url: string;
   port: number;
   username: string;
   password: string;
@@ -25,7 +24,7 @@ type FormState = {
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [form, setForm] = useState<FormState>({ target: "", url: "", port: 80, username: "", password: "", allowInsecure: false });
+  const [form, setForm] = useState<FormState>({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
@@ -169,14 +168,13 @@ export default function Settings() {
   }
 
     setEditingIndex(null);
-  setForm({ target: "", url: "", port: 80, username: "", password: "", allowInsecure: false });
+  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleEdit = (index: number) => {
     const connToEdit = connections[index];
     setForm({
   target: connToEdit.url ? connToEdit.url : (connToEdit.ip || ""),
-  url: connToEdit.url || '',
   port: connToEdit.port || 80,
   username: connToEdit.username,
   password: "", // Keep password field blank for security
@@ -188,7 +186,7 @@ export default function Settings() {
 
   const handleCancelEdit = () => {
     setEditingIndex(null);
-  setForm({ target: "", url: "", port: 80, username: "", password: "", allowInsecure: false });
+  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleSetMaster = (ip: string) => {
@@ -254,28 +252,7 @@ export default function Settings() {
               className="w-24 px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
             />
           </div>
-          <input
-            type="text"
-            placeholder="Full URL (optional, e.g. https://adguard.local:8443)"
-            value={form.url}
-            onChange={e => {
-              const val = e.target.value;
-              // mirror into target so saving works whether user fills target or this url field
-              setForm(f => {
-                let newPort = f.port;
-                try {
-                  const parsed = new URL(val);
-                  if (parsed.port) {
-                    newPort = parseInt(parsed.port, 10);
-                  } else newPort = parsed.protocol === 'https:' ? 443 : 80;
-                } catch {
-                  if (String(val).startsWith('https')) newPort = 443;
-                }
-                return { ...f, url: val, target: val, port: newPort };
-              });
-            }}
-            className="px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-          />
+          {/* Full URL input removed — single 'target' field covers IP or full URL */}
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={form.allowInsecure} onChange={e => setForm(f => ({ ...f, allowInsecure: e.target.checked }))} />
             <span className="text-sm text-primary">Allow insecure SSL (accept self-signed certificates)</span>
