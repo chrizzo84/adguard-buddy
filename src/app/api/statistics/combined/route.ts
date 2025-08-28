@@ -4,13 +4,16 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import CryptoJS from "crypto-js";
 import logger from "../../logger";
+import { httpRequest } from '../../../lib/httpRequest';
 
 // Types
 type Connection = {
-  ip: string;
-  username: string;
-  password: string; // encrypted
-  port?: number;
+    ip: string;
+    username: string;
+    password: string; // encrypted
+    port?: number;
+    url?: string;
+    allowInsecure?: boolean;
 };
 
 type TopArrayEntry = { [key: string]: number };
@@ -53,19 +56,19 @@ async function fetchStatsForServer(connection: Connection): Promise<StatsData | 
             // Ignore decryption errors for now, maybe the password is not encrypted
         }
 
-        const port = connection.port || 80;
-        const statsUrl = `http://${connection.ip}:${port}/control/stats`;
+    const base = connection.url && connection.url.length > 0 ? connection.url.replace(/\/$/, '') : `http://${connection.ip}:${connection.port || 80}`;
+        const statsUrl = `${base}/control/stats`;
         const headers: Record<string, string> = {};
         if (connection.username && decryptedPassword) {
             headers["Authorization"] = "Basic " + Buffer.from(`${connection.username}:${decryptedPassword}`).toString("base64");
         }
 
-        const response = await fetch(statsUrl, { method: "GET", headers });
-        if (!response.ok) {
-            logger.warn(`Failed to fetch stats from ${connection.ip}: ${response.statusText}`);
+    const r = await httpRequest({ method: 'GET', url: statsUrl, headers, allowInsecure: connection.allowInsecure });
+        if (r.statusCode < 200 || r.statusCode >= 300) {
+            logger.warn(`Failed to fetch stats from ${connection.ip || connection.url || 'unknown'}: ${r.statusCode}`);
             return null;
         }
-        const data = await response.json();
+        const data = JSON.parse(r.body || '{}');
         // AdGuard API returns some fields with num_ prefix, we need to align them with our StatsData type
         return {
             ...data,

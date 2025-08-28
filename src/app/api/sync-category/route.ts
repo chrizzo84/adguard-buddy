@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import logger from "../logger";
 import { components } from "../../../types/adguard";
+import { httpRequest } from '../../lib/httpRequest';
 
 type Filter = {
     url: string;
@@ -13,6 +14,8 @@ type ConnectionDetails = {
   port: number;
   username: string;
   password: string;
+    url?: string;
+    allowInsecure?: boolean;
 };
 
 // Helper to create a streamable response
@@ -61,10 +64,13 @@ const doSync = async (
     destinationConnection: ConnectionDetails,
     category: string
 ) => {
-    const fetchApi = async (conn: ConnectionDetails, endpoint: string, options: RequestInit = {}) => {
-        const url = `http://${conn.ip}:${conn.port}/control/${endpoint}`;
-        const headers = { ...options.headers, 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' };
-        return fetch(url, { ...options, headers });
+    const fetchApi = async (conn: ConnectionDetails & { url?: string; allowInsecure?: boolean }, endpoint: string, options: RequestInit = {}) => {
+        const base = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `http://${conn.ip}:${conn.port}`;
+        const url = `${base}/control/${endpoint}`;
+        const headers = { ...(options.headers as Record<string,string> || {}), 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' } as Record<string,string>;
+        const method = (options.method && (options.method === 'POST' || options.method === 'PUT')) ? String(options.method) : 'GET';
+        const r = await httpRequest({ method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', url, headers, body: options.body as string || null, allowInsecure: conn.allowInsecure });
+        return { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, text: async () => r.body, json: async () => JSON.parse(r.body || '{}') } as Response;
     };
 
     log(`Starting sync for category: ${category}`);

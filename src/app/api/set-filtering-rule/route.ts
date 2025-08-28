@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
 import CryptoJS from 'crypto-js';
+import { httpRequest } from '../../lib/httpRequest';
 
 const dataFilePath = path.join(process.cwd(), '.data', 'connections.json');
 const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
@@ -11,6 +12,8 @@ type Connection = {
   port: number;
   username: string;
   password: string; // encrypted
+    url?: string;
+    allowInsecure?: boolean;
 };
 
 async function getConnections(): Promise<{ connections: Connection[], masterServerIp: string | null }> {
@@ -59,18 +62,14 @@ export async function POST(request: Request) {
 
                     sendEvent({ message: `Processing server: ${conn.ip}` });
 
-                    const authString = Buffer.from(`${conn.username}:${decryptedPassword}`).toString('base64');
-
-                    const response = await fetch(`http://${conn.ip}:${conn.port}/control/filtering/set_rules`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Basic ${authString}`,
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ rules: [rule] }),
-                        }
-                    );
+                        const base = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `http://${conn.ip}:${conn.port}`;
+                        const url = `${base}/control/filtering/set_rules`;
+                        const headers: Record<string,string> = {
+                            'Content-Type': 'application/json',
+                        };
+                        if (conn.username) headers['Authorization'] = 'Basic ' + Buffer.from(`${conn.username}:${decryptedPassword}`).toString('base64');
+                        const r = await httpRequest({ method: 'POST', url, headers, body: JSON.stringify({ rules: [rule] }), allowInsecure: conn.allowInsecure });
+                        const response = { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, text: async () => r.body } as Response;
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({ message: response.statusText }));

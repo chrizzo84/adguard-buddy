@@ -8,6 +8,9 @@ type Connection = {
   ip: string;
   username: string;
   password: string; // encrypted
+  url?: string;
+  port?: number;
+  allowInsecure?: boolean;
 };
 
 type TopArrayEntry = { [key: string]: number };
@@ -118,19 +121,23 @@ export default function StatisticsPage() {
       </label>
       <select
         id="server-select"
-        value={selectedConnection?.ip || ''}
+        value={selectedConnection ? (selectedConnection.url ? selectedConnection.url.replace(/\/$/, '') : `${selectedConnection.ip}:${selectedConnection.port ?? 80}`) : ''}
         onChange={(e) => {
-          const conn = connections.find(c => c.ip === e.target.value);
+          const val = e.target.value;
+          const conn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === val) || (`${c.ip}:${c.port ?? 80}` === val));
           setSelectedConnection(conn || null);
         }}
         className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
         disabled={connections.length === 0}
       >
-        {connections.map(conn => (
-          <option key={conn.ip} value={conn.ip}>
-            {conn.ip} ({conn.username})
-          </option>
-        ))}
+        {connections.map(conn => {
+          const id = conn.url ? conn.url.replace(/\/$/, '') : `${conn.ip}:${conn.port ?? 80}`;
+          return (
+            <option key={id} value={id}>
+              {conn.url ? `${conn.url} (${conn.username || ''})` : `${conn.ip}:${conn.port ?? 80} (${conn.username || ''})`}
+            </option>
+          );
+        })}
       </select>
     </div>
   );

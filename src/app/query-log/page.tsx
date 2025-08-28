@@ -6,7 +6,9 @@ import CryptoJS from "crypto-js";
 
 // Types
 type Connection = {
-  ip: string;
+  ip?: string;
+  url?: string;
+  port?: number;
   username: string;
   password: string; // encrypted
   color?: string;
@@ -34,6 +36,7 @@ export default function QueryLogPage() {
   // State
   const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
+  const [selectedId, setSelectedId] = useState<string>('');
   const [mode, setMode] = useState<'single' | 'combined'>('single');
   const [logs, setLogs] = useState<QueryLogItem[]>([]);
   const [concurrency, setConcurrency] = useState<number>(5); // max concurrent requests in combined mode
@@ -74,11 +77,11 @@ export default function QueryLogPage() {
           decrypted = "";
         }
 
-        const response = await fetch('/api/query-log', {
+    const response = await fetch('/api/query-log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            ...selectedConnection,
+      ...selectedConnection,
             password: decrypted,
             response_status: filter,
             limit: perServerLimit,
@@ -90,12 +93,13 @@ export default function QueryLogPage() {
           throw new Error(errorData.message || 'Failed to fetch logs');
         }
 
-        const data: QueryLogResponse = await response.json();
-        // annotate with server ip for consistency
-  const annotated = (data.data || []).map((item) => ({ ...item, serverIp: selectedConnection.ip }));
+    const data: QueryLogResponse = await response.json();
+    // annotate with normalized server id for consistency (prefer URL trimmed, otherwise ip:port)
+  const sid = selectedConnection.url && selectedConnection.url.length > 0 ? selectedConnection.url.replace(/\/$/, '') : `${selectedConnection.ip || ''}${selectedConnection.port ? ':'+selectedConnection.port : ''}`;
+  const annotated = (data.data || []).map((item) => ({ ...item, serverIp: sid }));
   setLogs(annotated);
   // update serverCounts for single mode
-  setServerCounts({ [selectedConnection.ip]: annotated.length });
+  setServerCounts({ [sid]: annotated.length });
         setLastUpdated(new Date());
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -131,11 +135,11 @@ export default function QueryLogPage() {
             decrypted = "";
           }
 
-          const response = await fetch('/api/query-log', {
+      const response = await fetch('/api/query-log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              ...conn,
+        ...conn,
               password: decrypted,
               response_status: filter,
               limit: perServerLimit,
@@ -148,7 +152,8 @@ export default function QueryLogPage() {
           }
 
           const data: QueryLogResponse = await response.json();
-          return (data.data || []).map((item) => ({ ...item, serverIp: conn.ip }));
+          const sid = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `${conn.ip || ''}${conn.port ? ':'+conn.port : ''}`;
+          return (data.data || []).map((item) => ({ ...item, serverIp: sid }));
         };
 
         for (let i = 0; i < connections.length; i += batchSize) {
@@ -169,11 +174,11 @@ export default function QueryLogPage() {
         // sort by time descending so newest appear first
         allResults.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
-        // compute per-server counts
+        // compute per-server counts using normalized server id
         const counts: Record<string, number> = {};
         for (const item of allResults) {
-          const ip = item.serverIp || 'unknown';
-          counts[ip] = (counts[ip] || 0) + 1;
+          const id = item.serverIp || item.client || 'Unnamed';
+          counts[id] = (counts[id] || 0) + 1;
         }
         setServerCounts(counts);
 
@@ -340,7 +345,10 @@ export default function QueryLogPage() {
           setConnections(conns);
           setMasterServerIp(data.masterServerIp || null);
           if (conns.length > 0) {
-            setSelectedConnection(conns[0]);
+            const first = conns[0];
+            setSelectedConnection(first);
+            const id = first.url && first.url.length > 0 ? first.url.replace(/\/$/, '') : `${first.ip || 'unknown'}${first.port ? ':'+first.port : ''}`;
+            setSelectedId(id);
           }
         } catch (error) {
           const err = error as Error;
@@ -533,11 +541,12 @@ export default function QueryLogPage() {
           mode={mode}
           setMode={setMode}
           connectionsCount={connections.length}
-          selectedIp={selectedConnection?.ip || ''}
-          onSelectIp={(ip) => {
-            const conn = connections.find(c => c.ip === ip);
-            setSelectedConnection(conn || null);
-          }}
+            selectedId={selectedId}
+            onSelectId={(id) => {
+              setSelectedId(id);
+              const conn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === id) || c.ip === id || `${c.ip}${c.port ? ':'+c.port : ''}` === id);
+              setSelectedConnection(conn || null);
+            }}
           refreshInterval={refreshInterval}
           onSetRefreshInterval={(n) => setRefreshInterval(n)}
           concurrency={concurrency}
@@ -548,7 +557,7 @@ export default function QueryLogPage() {
           setCombinedMax={(n) => setCombinedMax(n)}
           pageSize={pageSize}
           setPageSize={(n) => { setPageSize(n); }}
-          connections={connections.map(c => ({ ip: c.ip, username: c.username }))}
+          connections={connections}
             />
           </div>
         </div>
@@ -582,22 +591,23 @@ export default function QueryLogPage() {
                 // Build ordered list: master first (if present), then connections in JSON order.
                 const countsEntries = Object.entries(serverCounts);
                 // preserve JSON order of connections
-                const connOrder = connections.map(c => c.ip);
+                const connOrder = connections.map(c => String(c.ip || c.url || ''));
                 const seen = new Set<string>();
                 const ordered: Array<{ ip: string; count: number }> = [];
 
                 // add master first if present and present in counts
-                if (masterServerIp && serverCounts[masterServerIp] !== undefined) {
-                  ordered.push({ ip: masterServerIp, count: serverCounts[masterServerIp] });
-                  seen.add(masterServerIp);
+                if (masterServerIp && serverCounts[String(masterServerIp)] !== undefined) {
+                  ordered.push({ ip: String(masterServerIp), count: serverCounts[String(masterServerIp)] });
+                  seen.add(String(masterServerIp));
                 }
 
                 // add in the order defined by connections.json
                 for (const ip of connOrder) {
-                  if (seen.has(ip)) continue;
-                  if (serverCounts[ip] !== undefined) {
-                    ordered.push({ ip, count: serverCounts[ip] });
-                    seen.add(ip);
+                  const sip = String(ip || '');
+                  if (seen.has(sip)) continue;
+                  if (serverCounts[sip] !== undefined) {
+                    ordered.push({ ip: sip, count: serverCounts[sip] });
+                    seen.add(sip);
                   }
                 }
 
@@ -608,6 +618,11 @@ export default function QueryLogPage() {
 
                 return ordered.map(({ ip }) => {
                   const color = serverColors[ip];
+                  // Try to find the original connection that matches this id (url trimmed or ip:port)
+                  const match = connections.find(c => (c.url && c.url.replace(/\/$/, '') === ip) || c.ip === ip || `${c.ip}${c.port ? ':'+c.port : ''}` === ip);
+                  const source = match ? (match.url && match.url.length > 0 ? match.url.replace(/\/$/, '') : `${match.ip}${match.port ? ':'+match.port : ''}`) : (ip || '');
+                  const truncate = (s: string, n = 40) => s.length > n ? `${s.slice(0, n-3)}...` : s;
+                  const display = source && source.length > 0 ? truncate(source, 48) : 'Unnamed';
                   return (
                     <div key={ip} className="flex items-center gap-2">
                       <div className="relative w-8 h-8">
@@ -617,10 +632,10 @@ export default function QueryLogPage() {
                           value={color || '#000000'}
                           onChange={(e) => handlePickColor(ip, e.target.value)}
                           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer p-0 m-0 rounded-md"
-                          aria-label={`Color for ${ip}`}
+                          aria-label={`Color for ${display}`}
                         />
                       </div>
-                      <div className="text-xs text-gray-300 font-mono">{ip}</div>
+                      <div className="text-xs text-gray-300 font-mono">{display}</div>
                     </div>
                   );
                 });

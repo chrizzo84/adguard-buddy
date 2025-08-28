@@ -5,16 +5,26 @@ import CryptoJS from "crypto-js";
 import { useTheme } from "../contexts/ThemeContext";
 
 type Connection = {
-  ip: string;
-  port: number;
+  ip?: string;
+  url?: string; // full URL including scheme (http/https)
+  port?: number;
   username: string;
   password: string; // encrypted
+  allowInsecure?: boolean;
 };
+
+type FormState = {
+  target: string;
+  port: number;
+  username: string;
+  password: string;
+  allowInsecure: boolean;
+}
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [form, setForm] = useState({ ip: "", port: 80, username: "", password: "" });
+  const [form, setForm] = useState<FormState>({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
@@ -77,17 +87,17 @@ export default function Settings() {
     }
 
     try {
-        const res = await fetch("/api/check-adguard", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...conn, password: decrypted }),
-        });
+    const res = await fetch("/api/check-adguard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...conn, password: decrypted }),
+    });
         const data = await res.json();
-        if (data.status === 'connected') {
-            if (!quiet) showNotification(`Successfully connected to ${conn.ip}`, 'success');
+    if (data.status === 'connected') {
+      if (!quiet) showNotification(`Successfully connected to ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}`, 'success');
             return true;
         } else {
-            if (!quiet) showNotification(`Connection failed for ${conn.ip}: ${data.response || 'Unknown error'}`, 'error');
+      if (!quiet) showNotification(`Connection failed for ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}: ${data.response || 'Unknown error'}`, 'error');
             return false;
         }
     } catch (e: unknown) {
@@ -98,7 +108,7 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
-    if (!form.ip || !form.username) return;
+    if (!form.target || !form.username) return;
 
     let newConnection: Connection;
     const isUpdating = editingIndex !== null;
@@ -107,9 +117,17 @@ export default function Settings() {
       const updatedConnections = [...connections];
       const connectionToUpdate = { ...updatedConnections[editingIndex as number] };
 
-      connectionToUpdate.ip = form.ip;
+      // store either url or ip depending on target
+      if (form.target && String(form.target).startsWith('http')) {
+        connectionToUpdate.url = form.target;
+        connectionToUpdate.ip = undefined;
+      } else {
+        connectionToUpdate.ip = form.target;
+        connectionToUpdate.url = undefined;
+      }
       connectionToUpdate.port = form.port;
       connectionToUpdate.username = form.username;
+      connectionToUpdate.allowInsecure = form.allowInsecure;
 
       if (form.password) {
         connectionToUpdate.password = CryptoJS.AES.encrypt(form.password, encryptionKey).toString();
@@ -123,30 +141,44 @@ export default function Settings() {
         return;
       }
       const encrypted = CryptoJS.AES.encrypt(form.password, encryptionKey).toString();
-      newConnection = { ...form, password: encrypted };
+      if (form.target && String(form.target).startsWith('http')) {
+        // extract port from URL if present
+        let usePort = form.port;
+        try {
+          const parsed = new URL(form.target);
+          if (parsed.port) usePort = parseInt(parsed.port, 10);
+          else usePort = parsed.protocol === 'https:' ? 443 : 80;
+        } catch {
+          // ignore
+        }
+        newConnection = { url: form.target, port: usePort, username: form.username, password: encrypted, allowInsecure: form.allowInsecure } as Connection;
+      } else {
+        newConnection = { ip: form.target, port: form.port, username: form.username, password: encrypted, allowInsecure: form.allowInsecure } as Connection;
+      }
       saveConnections([...connections, newConnection]);
     }
 
     showNotification(`Connection ${isUpdating ? 'updated' : 'saved'}. Testing...`, 'success');
     const testSuccess = await handleTest(newConnection, true);
 
-    if(testSuccess) {
-        showNotification(`Connection to ${newConnection.ip} successful!`, 'success');
-    } else {
-        showNotification(`Could not connect to ${newConnection.ip} after saving. Please check details.`, 'error');
-    }
+  if(testSuccess) {
+    showNotification(`Connection to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} successful!`, 'success');
+  } else {
+    showNotification(`Could not connect to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} after saving. Please check details.`, 'error');
+  }
 
     setEditingIndex(null);
-    setForm({ ip: "", port: 80, username: "", password: "" });
+  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleEdit = (index: number) => {
     const connToEdit = connections[index];
     setForm({
-        ip: connToEdit.ip,
-        port: connToEdit.port,
-        username: connToEdit.username,
-        password: "" // Keep password field blank for security
+  target: connToEdit.url ? connToEdit.url : (connToEdit.ip || ""),
+  port: connToEdit.port || 80,
+  username: connToEdit.username,
+  password: "", // Keep password field blank for security
+  allowInsecure: connToEdit.allowInsecure || false,
     });
     setEditingIndex(index);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -154,7 +186,7 @@ export default function Settings() {
 
   const handleCancelEdit = () => {
     setEditingIndex(null);
-    setForm({ ip: "", port: 80, username: "", password: "" });
+  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleSetMaster = (ip: string) => {
@@ -186,9 +218,30 @@ export default function Settings() {
           <div className="flex gap-4">
             <input
               type="text"
-              placeholder="IP Address"
-              value={form.ip}
-              onChange={e => setForm(f => ({ ...f, ip: e.target.value }))}
+              placeholder="IP or URL (include http:// or https:// for URLs)"
+              value={form.target}
+              onChange={e => {
+                const val = e.target.value;
+                setForm(f => {
+                  let newPort = f.port;
+                  try {
+                    const parsed = new URL(val);
+                    if (parsed.port) {
+                      newPort = parseInt(parsed.port, 10);
+                    } else if (parsed.protocol === 'https:') {
+                      newPort = 443;
+                    } else if (parsed.protocol === 'http:') {
+                      newPort = 80;
+                    }
+                  } catch {
+                    // not a full URL; if user types starting with 'https' assume 443
+                    if (String(val).startsWith('https')) {
+                      newPort = 443;
+                    }
+                  }
+                  return { ...f, target: val, port: newPort };
+                });
+              }}
               className="flex-grow px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
             />
             <input
@@ -199,6 +252,11 @@ export default function Settings() {
               className="w-24 px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
             />
           </div>
+          {/* Full URL input removed — single 'target' field covers IP or full URL */}
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={form.allowInsecure} onChange={e => setForm(f => ({ ...f, allowInsecure: e.target.checked }))} />
+            <span className="text-sm text-primary">Allow insecure SSL (accept self-signed certificates)</span>
+          </label>
           <input
             type="text"
             placeholder="Username"
@@ -238,10 +296,10 @@ export default function Settings() {
         <ul className="space-y-4">
           {connections.map((conn, idx) => (
             <li key={idx} className="flex items-center gap-4 bg-gray-900 rounded-lg px-4 py-3 shadow-neon border border-neon">
-              <span className="font-mono text-primary">{conn.ip}:{conn.port}</span>
+              <span className="font-mono text-primary">{conn.url && conn.url.length > 0 ? conn.url : `${conn.ip || 'unknown'}:${conn.port || ''}`}</span>
               <span className="text-primary">{conn.username}</span>
               <div className="ml-auto flex gap-2 items-center">
-                <button onClick={() => handleSetMaster(conn.ip)} title="Set as master for sync">
+                <button onClick={() => handleSetMaster(conn.ip || conn.url || '')} title="Set as master for sync">
                   <svg className={`w-5 h-5 transition-colors ${masterServerIp === conn.ip ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`} viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>

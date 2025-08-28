@@ -4,8 +4,8 @@ type Props = {
   mode: 'single' | 'combined';
   setMode: (m: 'single' | 'combined') => void;
   connectionsCount: number;
-  selectedIp: string;
-  onSelectIp: (ip: string) => void;
+  selectedId: string;
+  onSelectId: (id: string) => void;
   refreshInterval: number;
   onSetRefreshInterval: (n: number) => void;
   concurrency: number;
@@ -16,7 +16,7 @@ type Props = {
   setCombinedMax: (n: number) => void;
   pageSize: number;
   setPageSize: (n: number) => void;
-  connections: { ip: string; username: string }[];
+  connections: { ip?: string; url?: string; port?: number; username: string }[];
 };
 
 const PageControls = React.memo(function PageControls(props: Props) {
@@ -53,10 +53,15 @@ const PageControls = React.memo(function PageControls(props: Props) {
           {props.mode === 'single' ? (
             <div>
               <label htmlFor="server-select" className="block text-sm font-medium text-gray-400 mb-2">Server</label>
-              <select id="server-select" value={props.selectedIp} onChange={(e) => props.onSelectIp(e.target.value)} className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon" disabled={props.connectionsCount === 0}>
-                {props.connections.map(conn => (
-                  <option key={conn.ip} value={conn.ip}>{conn.ip} ({conn.username})</option>
-                ))}
+              <select id="server-select" value={props.selectedId} onChange={(e) => props.onSelectId(e.target.value)} className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon" disabled={props.connectionsCount === 0}>
+                {props.connections.map((conn, idx) => {
+                  const id = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `${conn.ip || ''}${conn.port ? ':' + conn.port : ''}`;
+                  const source = conn.url && conn.url.length > 0 ? conn.url : `${conn.ip || ''}${conn.port ? ':'+conn.port : ''}`;
+                  const truncate = (s: string, n = 40) => s.length > n ? `${s.slice(0, n-3)}...` : s;
+                  const display = source && source.length > 0 ? truncate(source, 48) : (conn.username ? `${conn.username}` : 'Unnamed');
+                  const label = `${display} (${conn.username})`;
+                  return <option key={`${id}-${idx}`} value={id}>{label}</option>;
+                })}
               </select>
             </div>
           ) : (

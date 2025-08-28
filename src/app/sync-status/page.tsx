@@ -10,6 +10,8 @@ type Connection = {
   port: number;
   username: string;
   password: string; // encrypted
+    url?: string;
+    allowInsecure?: boolean;
 };
 
 type FilterListItem = components['schemas']['Filter'];
@@ -111,7 +113,7 @@ export default function SyncStatusPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
   const [masterSettings, setMasterSettings] = useState<Settings | null>(null);
-  const [replicaSettings, setReplicaSettings] = useState<Record<string, Settings>>({});
+    const [replicaSettings, setReplicaSettings] = useState<Record<string, { settings?: Settings; errors?: Record<string,string> }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -133,8 +135,9 @@ export default function SyncStatusPage() {
     setLogModalTitle(`Syncing '${category}' to ${replicaIp}...`);
     setShowLogModal(true);
 
-    const masterConn = connections.find(c => c.ip === masterServerIp);
-    const replicaConn = connections.find(c => c.ip === replicaIp);
+    // Resolve connections by either ip or url (url stored without trailing slash)
+    const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === masterServerIp) || c.ip === masterServerIp);
+    const replicaConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === replicaIp) || c.ip === replicaIp);
 
     if (!masterConn || !replicaConn) {
         setSyncLogs(prev => [...prev, "Error: Master or replica connection not found."]);
@@ -217,12 +220,14 @@ export default function SyncStatusPage() {
             return;
         }
 
-        const allConnections: Connection[] = config.connections;
-        const masterConn = allConnections.find(c => c.ip === config.masterServerIp);
-        const replicaConns = allConnections.filter(c => c.ip !== config.masterServerIp);
-        
-        setConnections(allConnections);
-        setMasterServerIp(config.masterServerIp);
+    const allConnections: Connection[] = config.connections;
+    // Normalize connection id: prefer URL (trimmed) else ip
+    const connId = (c: Connection) => (c.url && c.url.length > 0) ? c.url.replace(/\/$/, '') : c.ip;
+    const masterConn = allConnections.find(c => connId(c) === config.masterServerIp || c.ip === config.masterServerIp || (c.url && c.url.replace(/\/$/, '') === config.masterServerIp));
+    const replicaConns = allConnections.filter(c => connId(c) !== (config.masterServerIp || ''));
+
+    setConnections(allConnections);
+    setMasterServerIp(config.masterServerIp);
 
         if (!masterConn) {
             setError("Configured master server not found in connections list.");
@@ -243,18 +248,17 @@ export default function SyncStatusPage() {
             if (!response.ok) throw new Error(`Failed to fetch settings for ${conn.ip}`);
             return response.json();
         };
+        const masterPromise = fetchSettingsFor(masterConn as Connection);
+    const replicaPromises = replicaConns.map(conn => fetchSettingsFor(conn).then(data => ({ id: connId(conn), settings: data.settings, errors: data.errors })));
 
-        const masterPromise = fetchSettingsFor(masterConn);
-        const replicaPromises = replicaConns.map(conn => fetchSettingsFor(conn).then(data => ({ ip: conn.ip, settings: data.settings })))
-        
         const masterResult = await masterPromise;
         setMasterSettings(masterResult.settings);
 
         const allReplicas = await Promise.all(replicaPromises);
         const replicaData = allReplicas.reduce((acc, current) => {
-            acc[current.ip] = current.settings;
+            acc[current.id] = { settings: current.settings, errors: current.errors };
             return acc;
-        }, {} as Record<string, Settings>);
+        }, {} as Record<string, { settings?: Settings; errors?: Record<string,string> }>);
         setReplicaSettings(replicaData);
 
     } catch (e: unknown) {
@@ -281,16 +285,34 @@ export default function SyncStatusPage() {
       </div>
   );
 
-  const ComparisonCard = ({ ip, settings }: { ip: string, settings: Settings }) => {
+  const ComparisonCard = ({ ip, settings }: { ip: string, settings: { settings?: Settings; errors?: Record<string,string> } }) => {
     const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
     if (!masterSettings) return null;
 
     const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'rewrites', 'blockedServices', 'accessList'];
 
+    if (!settings || (!settings.settings && settings.errors)) {
+        // Show error state
+        return (
+            <div className="adguard-card border-2 border-warning">
+                <h3 className="font-mono text-primary text-lg mb-2">{ip}</h3>
+                <p className="text-danger font-bold mb-2">Error fetching settings</p>
+                <div className="text-xs text-gray-400">
+                    {settings.errors ? Object.entries(settings.errors).map(([k,v]) => <div key={k}><strong>{k}:</strong> {v}</div>) : 'No details.'}
+                </div>
+            </div>
+        );
+    }
+
+    const targetSettings = settings.settings as Settings;
+
     const differences = SYNCABLE_KEYS.filter(key => {
-        if (!masterSettings[key] || !settings[key]) return false;
-        return !areSettingsEqual(masterSettings[key], settings[key]);
+        const m = (masterSettings as Settings)[key];
+        const r = (targetSettings as Settings)[key];
+        const bothMissing = (m === undefined || m === null) && (r === undefined || r === null);
+        if (bothMissing) return false;
+        return !areSettingsEqual(m, r);
     });
 
     const isSynced = differences.length === 0;
@@ -330,7 +352,7 @@ export default function SyncStatusPage() {
                             {expandedCategory === key && (
                                 <SimpleDiffViewer
                                     masterData={masterSettings[key]}
-                                    replicaData={settings[key]}
+                                    replicaData={targetSettings[key]}
                                 />
                             )}
                         </li>
