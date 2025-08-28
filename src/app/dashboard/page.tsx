@@ -8,6 +8,9 @@ type Connection = {
   ip: string;
   username: string;
   password: string;
+  url?: string;
+  port?: number;
+  allowInsecure?: boolean;
 };
 
 type AdGuardServerStatus = components['schemas']['ServerStatus'];
@@ -36,7 +39,8 @@ export default function Dashboard() {
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const toggleProtection = async (connection: Connection, enabled: boolean) => {
-    setUpdatingIp(connection.ip);
+  const id = connection.url && connection.url.length > 0 ? connection.url.replace(/\/$/, '') : `${connection.ip}${connection.port ? ':'+connection.port : ''}`;
+  setUpdatingIp(id);
     setError(null);
     try {
       let decrypted = "";
@@ -58,7 +62,7 @@ export default function Dashboard() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        setError(`Error toggling protection for ${connection.ip}: ${errorData.message || 'Unknown error'}`);
+  setError(`Error toggling protection for ${connection.url || connection.ip}: ${errorData.message || 'Unknown error'}`);
         return;
       }
 
@@ -68,7 +72,7 @@ export default function Dashboard() {
       setError(`A network error occurred while toggling protection.`);
       console.error(err);
     } finally {
-        setUpdatingIp(null);
+  setUpdatingIp(null);
     }
   };
 
@@ -85,7 +89,7 @@ export default function Dashboard() {
           decrypted = "";
         }
 
-        return fetch('/api/adguard-control', {
+  return fetch('/api/adguard-control', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -141,7 +145,7 @@ export default function Dashboard() {
     setError(null);
     try {
       const res = await Promise.all(
-        connections.map(async (conn): Promise<Result> => {
+  connections.map(async (conn): Promise<Result> => {
           let decrypted = "";
           try {
             decrypted = CryptoJS.AES.decrypt(conn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
@@ -270,20 +274,23 @@ export default function Dashboard() {
       {isLoading && <p className="text-primary text-center">Loading connection statuses...</p>}
       {error && <p className="text-danger p-3 rounded-md bg-danger-dark">{error}</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {!isLoading && !error && results.map((res) => {
+        {!isLoading && !error && results.map((res, idx) => {
           let parsed: AdGuardServerStatus | null = null;
           try {
             parsed = JSON.parse(res.response);
           } catch {
             parsed = null;
           }
+          const connId = res.url && res.url.length > 0 ? res.url.replace(/\/$/, '') : `${res.ip}${res.port ? ':'+res.port : ''}`;
           return (
-            <div key={res.ip}>
-              <div className="adguard-card mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-mono text-primary text-lg">{res.ip}</span>
-                  <span className={res.status === "connected" ? "text-primary font-bold" : "text-danger font-bold"}>{res.status}</span>
-                </div>
+              <div key={`${connId}-${idx}`}>
+                <div className="adguard-card mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-primary text-lg truncate block max-w-full">{connId}</span>
+                    </div>
+                    <span className={`${res.status === "connected" ? "text-primary font-bold" : "text-danger font-bold"} flex-shrink-0 ml-4`}>{res.status}</span>
+                  </div>
                 <div className="flex items-center gap-4 mb-2">
                   <span className="text-xs text-gray-500">User:</span>
                   <span className="text-primary font-mono">{res.username}</span>
@@ -310,11 +317,11 @@ export default function Dashboard() {
                                     : 'text-primary border-neon'
                                 }
                             `}
-                            disabled={isLoading || updatingIp === res.ip}
+              disabled={isLoading || updatingIp === connId}
                         >
                             {updatingIp === res.ip
-                                ? 'Updating...'
-                                : (parsed.protection_enabled ? 'Disable Protection' : 'Enable Protection')
+                ? 'Updating...'
+                : (parsed.protection_enabled ? 'Disable Protection' : 'Enable Protection')
                             }
                         </button>
                     </div>

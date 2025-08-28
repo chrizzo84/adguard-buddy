@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "../logger";
-
-
+import { httpRequest } from '../../lib/httpRequest';
 
 export async function POST(req: NextRequest) {
-    const { ip, port = 80, username, password } = await req.json();
-    logger.info(`POST /get-all-settings called for IP: ${ip}`);
+    const { ip, url: connUrl, port = 80, username, password, allowInsecure = false } = await req.json();
+    logger.info(`POST /get-all-settings called for target: ${connUrl || ip}`);
 
     const headers: Record<string, string> = {};
     if (username && password) {
@@ -16,9 +15,8 @@ export async function POST(req: NextRequest) {
     headers["Accept"] = "*/*";
     headers["Connection"] = "close";
 
-    const fetchOptions = { method: "GET", headers };
     // Alle Endpunkte seriell abfragen
-    const endpoints = {
+    const endpoints: Record<string, string> = {
       status: `/control/status`,
       profile: `/control/profile`,
       dns: `/control/dns_info`,
@@ -37,20 +35,22 @@ export async function POST(req: NextRequest) {
     const results: Record<string, unknown> = {};
     const errors: Record<string, string> = {};
 
+    // Build base: prefer provided URL, otherwise ip:port
+    const base = connUrl && connUrl.length > 0 ? connUrl.replace(/\/$/, '') : `http://${ip}:${port}`;
+
     for (const [key, endpoint] of Object.entries(endpoints)) {
-      const url = `http://${ip}:${port}${endpoint}`;
+      const fullUrl = `${base}${endpoint}`;
       try {
-        const res = await fetch(url, fetchOptions);
-        const text = await res.text();
-        logger.info(`[DEBUG] Endpoint '${key}' status: ${res.status}, response: ${text}`);
-        if (res.ok) {
+        const r = await httpRequest({ method: 'GET', url: fullUrl, headers, allowInsecure });
+        logger.info(`[DEBUG] Endpoint '${key}' status: ${r.statusCode}, response length: ${String(r.body).length}`);
+        if (r.statusCode >= 200 && r.statusCode < 300) {
           try {
-            results[key] = JSON.parse(text);
+            results[key] = JSON.parse(r.body || '{}');
           } catch {
-            results[key] = text;
+            results[key] = r.body;
           }
         } else {
-          errors[key] = `Failed with status ${res.status}`;
+          errors[key] = `Failed with status ${r.statusCode}`;
         }
       } catch (error) {
         errors[key] = error instanceof Error ? error.message : String(error);
