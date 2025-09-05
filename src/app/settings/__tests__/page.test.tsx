@@ -37,13 +37,15 @@ describe('Settings', () => {
     mockFetch.mockClear();
   });
 
-  it('renders the settings page with navigation', () => {
+  it('renders the settings page with navigation', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve({ connections: [], masterServerIp: null }),
     });
 
-    render(<Settings />);
+    await act(async () => {
+      render(<Settings />);
+    });
 
     expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
@@ -62,7 +64,9 @@ describe('Settings', () => {
       }),
     });
 
-    render(<Settings />);
+    await act(async () => {
+      render(<Settings />);
+    });
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
@@ -93,7 +97,9 @@ describe('Settings', () => {
   it('handles fetch settings error gracefully', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-    render(<Settings />);
+    await act(async () => {
+      render(<Settings />);
+    });
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
@@ -109,7 +115,9 @@ describe('Settings', () => {
       json: () => Promise.resolve({ connections: [], masterServerIp: null }),
     });
 
-    render(<Settings />);
+    await act(async () => {
+      render(<Settings />);
+    });
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
