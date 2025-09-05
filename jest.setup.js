@@ -23,6 +23,9 @@ beforeAll(() => {
     if (message.includes('Error reading connections file:')) {
       return; // Suppress expected connections file reading errors (permission denied, malformed JSON, etc.)
     }
+    if (message.includes('Failed to check for news')) {
+      return; // Suppress expected news fetching errors in tests
+    }
     // For all other errors, use the original console.error
     originalConsoleError.apply(console, args);
   });

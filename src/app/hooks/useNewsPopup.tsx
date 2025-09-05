@@ -34,7 +34,13 @@ export function useNewsPopup() {
           return;
         }
         const { hash, content } = await response.json();
-        const lastSeenHash = localStorage.getItem(LOCAL_STORAGE_KEY);
+        let lastSeenHash;
+        try {
+          lastSeenHash = localStorage.getItem(LOCAL_STORAGE_KEY);
+        } catch {
+          // If localStorage read fails, treat as no stored hash
+          lastSeenHash = null;
+        }
 
         if (hash !== lastSeenHash) {
           setNewsContent(content);

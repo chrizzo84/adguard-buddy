@@ -1,5 +1,3 @@
-"use client";
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 type Theme = 'green' | 'purple' | 'orange';
