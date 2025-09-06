@@ -56,15 +56,13 @@ jobs:
       - name: Run type checking
         run: pnpm run build
 
-      - name: Run tests
-        run: pnpm run test
-
       - name: Run tests with coverage
         run: pnpm run test:coverage
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage/lcov.info
           flags: unittests
           name: codecov-umbrella
