@@ -73,7 +73,7 @@ const doSync = async (
         return { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, text: async () => r.body, json: async () => JSON.parse(r.body || '{}') } as Response;
     };
 
-    log(`Starting sync for category: ${category}`);
+    log(`Starting sync for category: ${category} from ${sourceConnection.ip || sourceConnection.url} to ${destinationConnection.ip || destinationConnection.url}`);
 
     if (category === 'filtering') {
         log(`-> Fetching filtering status from master: ${sourceConnection.ip}`);

@@ -121,6 +121,7 @@ export default function SyncStatusPage() {
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [logModalTitle, setLogModalTitle] = useState<string>('');
+  const [syncAllProgress, setSyncAllProgress] = useState<string | null>(null);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -128,26 +129,35 @@ export default function SyncStatusPage() {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  const handleSync = async (replicaIp: string, category: string) => {
+  const handleSync = async (replicaIp: string, category: string, bulkMode: boolean = false) => {
     const syncKey = `${replicaIp}:${category}`;
-    setSyncing(syncKey);
-    setSyncLogs([]);
-    setLogModalTitle(`Syncing '${category}' to ${replicaIp}...`);
-    setShowLogModal(true);
+    if (!bulkMode) {
+      setSyncing(syncKey);
+      setSyncLogs([]);
+      setLogModalTitle(`Syncing '${category}' to ${replicaIp}...`);
+      setShowLogModal(true);
+    }
 
     // Resolve connections by either ip or url (url stored without trailing slash)
     const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === masterServerIp) || c.ip === masterServerIp);
     const replicaConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === replicaIp) || c.ip === replicaIp);
 
     if (!masterConn || !replicaConn) {
-        setSyncLogs(prev => [...prev, "Error: Master or replica connection not found."]);
-        setSyncing(null);
+        const errorMsg = "Error: Master or replica connection not found.";
+        if (bulkMode) {
+          setSyncLogs(prev => [...prev, `${replicaIp}:${category} - ${errorMsg}`]);
+        } else {
+          setSyncLogs(prev => [...prev, errorMsg]);
+        }
+        if (!bulkMode) setSyncing(null);
         return;
     }
 
     try {
     const sourceDecrypted = CryptoJS.AES.decrypt(masterConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
     const destDecrypted = CryptoJS.AES.decrypt(replicaConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+
+        console.log(`[SYNC] Starting sync: ${category} from ${masterConn.ip || masterConn.url} to ${replicaConn.ip || replicaConn.url}`);
 
         const response = await fetch('/api/sync-category', {
             method: 'POST',
@@ -167,11 +177,24 @@ export default function SyncStatusPage() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let pendingLogs: string[] = [];
+
+        const flushLogs = () => {
+          if (pendingLogs.length > 0) {
+            setSyncLogs(prev => [...prev, ...pendingLogs]);
+            pendingLogs = [];
+          }
+        };
+
+        // Flush logs every 100ms for better performance
+        const flushInterval = setInterval(flushLogs, 100);
 
         while (true) {
             const { value, done } = await reader.read();
             if (done) {
-                setLogModalTitle(prev => prev.replace('Syncing', 'Synced'));
+                clearInterval(flushInterval);
+                flushLogs(); // Final flush
+                if (!bulkMode) setLogModalTitle(prev => prev.replace('Syncing', 'Synced'));
                 break;
             }
 
@@ -184,23 +207,71 @@ export default function SyncStatusPage() {
                     const jsonStr = line.substring(6);
                     try {
                         const data = JSON.parse(jsonStr);
-                        setSyncLogs(prev => [...prev, data.message]);
+                        const logMsg = bulkMode ? `${replicaIp}:${category} - ${data.message}` : data.message;
+                        pendingLogs.push(logMsg);
                     } catch {
                         console.error("Failed to parse log line:", jsonStr);
                     }
                 }
             }
         }
-        setTimeout(() => fetchAllSettings(), 1000);
+        if (!bulkMode) setTimeout(() => fetchAllSettings(), 1000);
+        console.log(`[SYNC] Completed sync: ${category} from ${masterConn.ip || masterConn.url} to ${replicaConn.ip || replicaConn.url}`);
 
     } catch (e: unknown) {
         const errorMessage = `FATAL: ${e instanceof Error ? e.message : String(e)}`;
-        setSyncLogs(prev => [...prev, errorMessage]);
-        setLogModalTitle(prev => prev.replace('Syncing', 'Failed'));
-        showNotification(errorMessage, 'error');
+        const logMsg = bulkMode ? `${replicaIp}:${category} - ${errorMessage}` : errorMessage;
+        setSyncLogs(prev => [...prev, logMsg]);
+        if (!bulkMode) {
+          setLogModalTitle(prev => prev.replace('Syncing', 'Failed'));
+          showNotification(errorMessage, 'error');
+        }
+        console.error(`[SYNC] Failed sync: ${category} from ${masterConn?.ip || masterConn?.url} to ${replicaConn?.ip || replicaConn?.url}:`, e);
     } finally {
-        setSyncing(null);
+        if (!bulkMode) setSyncing(null);
     }
+  };
+
+    const handleSyncAll = async () => {
+    if (!masterSettings) {
+      showNotification('Master settings not loaded yet.', 'error');
+      return;
+    }
+
+    setSyncAllProgress('Starting sync all...');
+    setSyncLogs([]);
+    setLogModalTitle('Syncing All...');
+    setShowLogModal(true);
+
+    const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'rewrites', 'blockedServices', 'accessList'];
+
+    const replicas = Object.keys(replicaSettings);
+    const totalTasks = replicas.length * SYNCABLE_KEYS.length;
+    let completedTasks = 0;
+
+    // Add initial progress log
+    setSyncLogs(prev => [...prev, `Starting bulk sync of ${totalTasks} tasks across ${replicas.length} servers...`]);
+    console.log(`[SYNC-ALL] Starting bulk sync: ${totalTasks} tasks across ${replicas.length} servers`);
+
+    for (const replicaIp of replicas) {
+      for (const category of SYNCABLE_KEYS) {
+        setSyncAllProgress(`Syncing ${category} to ${replicaIp}... (${completedTasks + 1}/${totalTasks})`);
+        try {
+          await handleSync(replicaIp, category, true);
+        } catch (error) {
+          console.error(`[SYNC-ALL] Failed to sync ${category} to ${replicaIp}:`, error);
+        }
+        completedTasks++;
+      }
+    }
+
+    setLogModalTitle('Synced All');
+    setSyncAllProgress(null);
+    setSyncLogs(prev => [...prev, `Bulk sync completed! Processed ${totalTasks} tasks.`]);
+    console.log(`[SYNC-ALL] Bulk sync completed: ${totalTasks} tasks processed successfully`);
+    showNotification('Sync all completed.', 'success');
+    // Refresh settings after sync all
+    setTimeout(() => fetchAllSettings(), 1000);
   };
 
   const fetchAllSettings = useCallback(async () => {
@@ -343,7 +414,7 @@ export default function SyncStatusPage() {
                                 </button>
                                 <button
                                     onClick={() => handleSync(ip, key)}
-                                    className="px-3 py-1 text-xs text-primary border border-neon rounded-md disabled:opacity-50"
+                                    className="px-3 py-1 text-xs text-primary border border-neon rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
                                     disabled={isSyncing}
                                 >
                                     {isSyncing ? 'Syncing...' : 'Sync'}
@@ -364,22 +435,56 @@ export default function SyncStatusPage() {
   };
 
   const LogViewerModal = ({ title, logs, show, onClose }: { title: string, logs: string[], show: boolean, onClose: () => void }) => {
+    const logsContainerRef = useRef<HTMLDivElement>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
+    const shouldAutoScrollRef = useRef(true);
+    const lastLogsLengthRef = useRef(logs.length);
+
+    // Handle scroll events to detect if user has scrolled up
+    const handleScroll = () => {
+      if (logsContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current;
+        // If user is not at the bottom, stop auto-scrolling
+        shouldAutoScrollRef.current = scrollTop + clientHeight >= scrollHeight - 50;
+      }
+    };
+
     useEffect(() => {
-      logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      // Only auto-scroll if logs were added (not just on initial render)
+      const logsWereAdded = logs.length > lastLogsLengthRef.current;
+      lastLogsLengthRef.current = logs.length;
+
+      if (logsWereAdded && shouldAutoScrollRef.current && logsEndRef.current) {
+        // Use requestAnimationFrame for smoother scrolling
+        requestAnimationFrame(() => {
+          logsEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        });
+      }
     }, [logs]);
+
     if (!show) return null;
+
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-primary-dark rounded-lg shadow-lg w-full max-w-4xl h-[70vh] flex flex-col p-4">
-          <div className="flex justify-between items-center mb-4">
+      <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 border border-primary-dark rounded-lg shadow-lg w-full max-w-5xl max-h-[80vh] flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b border-gray-700">
             <h2 className="text-lg font-bold text-primary">{title}</h2>
-            <button onClick={onClose} className="text-gray-400 hover:text-white font-bold text-2xl">&times;</button>
+            <button onClick={onClose} className="text-gray-400 hover:text-white font-bold text-2xl leading-none">&times;</button>
           </div>
-          <div className="bg-black flex-grow rounded-md p-4 overflow-y-auto font-mono text-sm text-gray-300">
-            {logs.map((log, index) => (
-              <div key={index} className={log.startsWith('ERROR') || log.startsWith('FATAL') ? 'text-danger' : ''}>{`> ${log}`}</div>
-            ))}
+          <div
+            ref={logsContainerRef}
+            className="flex-grow p-4 overflow-y-auto font-mono text-sm text-gray-300 bg-gray-950 rounded-b-lg"
+            onScroll={handleScroll}
+          >
+            {logs.length === 0 ? (
+              <div className="text-gray-500 italic">No logs yet...</div>
+            ) : (
+              logs.map((log, index) => (
+                <div key={index} className={`mb-1 leading-relaxed ${log.includes('ERROR') || log.includes('FATAL') || log.includes('Failed') ? 'text-danger' : log.includes('Successfully') || log.includes('completed') || log.includes('Synced') ? 'text-green-400' : ''}`}>
+                  {log}
+                </div>
+              ))
+            )}
             <div ref={logsEndRef} />
           </div>
         </div>
@@ -409,6 +514,18 @@ export default function SyncStatusPage() {
 
       {isLoading && <p className="text-center text-primary">Loading all server settings for comparison...</p>}
       {error && <p className="text-center text-danger p-4 bg-danger-dark rounded-lg">{error}</p>}
+
+      {!isLoading && !error && (
+        <div className="text-center mb-8">
+          <button
+            onClick={handleSyncAll}
+            className="px-4 py-2 font-bold text-primary bg-gray-800 rounded-lg border-neon border hover:bg-gray-700 transition-all duration-300 shadow-neon disabled:opacity-50"
+            disabled={!!syncAllProgress}
+          >
+            {syncAllProgress || 'Sync All'}
+          </button>
+        </div>
+      )}
 
       {!isLoading && !error && (
         <div className="space-y-8">
