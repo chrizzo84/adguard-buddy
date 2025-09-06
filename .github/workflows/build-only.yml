@@ -1,22 +1,79 @@
 
 permissions:
   contents: read
-name: Build Next App
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '*' ]
     paths:
       - 'src/**'
-      - '.github/workflows/build-only.yml'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/**'
+      - 'jest.config.js'
+      - 'jest.setup.js'
+      - 'eslint.config.mjs'
+      - 'tsconfig.json'
   pull_request:
-    branches: [ main ]
+    branches: [ '*' ]
     paths:
       - 'src/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/**'
+      - 'jest.config.js'
+      - 'jest.setup.js'
+      - 'eslint.config.mjs'
+      - 'tsconfig.json'
 
 jobs:
-  build:
+  test:
+    name: Test Suite
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linting
+        run: pnpm run lint
+
+      - name: Run type checking
+        run: pnpm run build
+
+      - name: Run tests
+        run: pnpm run test
+
+      - name: Run tests with coverage
+        run: pnpm run test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,3 +95,10 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build
+          path: .next/
+          retention-days: 7

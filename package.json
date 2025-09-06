@@ -7,10 +7,15 @@
     "build": "next build --no-lint",
     "start": "next start",
     "lint": "next lint --max-warnings 0",
+    "lint:fix": "next lint --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "prepare": "husky && husky install"
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "type-check": "tsc --noEmit",
+    "prepare": "husky && husky install",
+    "pre-commit": "pnpm run lint && pnpm run test",
+    "ci": "pnpm run lint && pnpm run type-check && pnpm run test:ci"
   },
   "dependencies": {
     "crypto-js": "^4.2.0",

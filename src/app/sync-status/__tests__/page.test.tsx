@@ -350,13 +350,13 @@ describe('SyncStatusPage', () => {
       render(<SyncStatusPage />);
     });
 
-    let syncButton;
+    let syncButton: HTMLElement;
     await waitFor(() => {
       syncButton = screen.getByText('Sync');
       expect(syncButton).toBeInTheDocument();
     });
 
-    fireEvent.click(syncButton);
+    fireEvent.click(syncButton!);
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith('/api/sync-category', expect.any(Object));
