@@ -135,7 +135,7 @@ describe('httpRequest', () => {
     expect(mockHttp.request).toHaveBeenCalledWith({
       method: 'GET',
       hostname: 'example.com',
-      port: '8080',
+      port: 8080,
       path: '/api/test',
       headers: {},
     }, expect.any(Function));
