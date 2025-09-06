@@ -26,7 +26,9 @@ async function getConnections(): Promise<{ connections: Connection[], masterServ
         if (err.code === 'ENOENT') {
             return { connections: [], masterServerIp: null };
         }
-        throw error;
+        // Handle JSON parse errors and other file system errors
+        console.error('Error reading connections file:', error);
+        return { connections: [], masterServerIp: null };
     }
 }
 
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
                         };
                         if (conn.username) headers['Authorization'] = 'Basic ' + Buffer.from(`${conn.username}:${decryptedPassword}`).toString('base64');
                         const r = await httpRequest({ method: 'POST', url, headers, body: JSON.stringify({ rules: [rule] }), allowInsecure: conn.allowInsecure });
-                        const response = { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, text: async () => r.body } as Response;
+                        const response = { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, statusText: r.statusCode === 500 ? 'Internal Server Error' : '', text: async () => r.body, json: async () => JSON.parse(r.body || '{}') } as Response;
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({ message: response.statusText }));

@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/coverage-*
+.nyc_output
+
+# jest cache
+.jest/
 
 # next.js
 /.next/

@@ -53,6 +53,70 @@ docker run -p 3000:3000 adguard-buddy
 ```
 
 ---
+
+## 🧪 Development & Testing
+
+### Available Scripts
+
+```bash
+# Development
+pnpm dev              # Start development server
+pnpm build           # Build for production
+pnpm start           # Start production server
+
+# Testing
+pnpm test            # Run tests
+pnpm test:watch      # Run tests in watch mode
+pnpm test:coverage   # Run tests with coverage report
+pnpm test:ci         # Run tests for CI (no watch)
+
+# Code Quality
+pnpm lint            # Run ESLint
+pnpm lint:fix        # Run ESLint with auto-fix
+pnpm type-check      # Run TypeScript type checking
+
+# Combined
+pnpm ci              # Run lint + type-check + test:ci
+pnpm pre-commit      # Run lint + test (for pre-commit hooks)
+```
+
+### Testing Overview
+
+- **Framework:** Jest with React Testing Library
+- **Coverage:** 76.45% overall (75%+ target achieved)
+- **Test Suites:** 29 test suites with 300 total tests
+- **CI/CD:** Automated testing on every push/PR
+
+### Coverage Breakdown
+
+| Component | Statements | Branches | Functions | Lines |
+|-----------|------------|----------|-----------|-------|
+| Components | 100% | 92.85% | 100% | 100% |
+| Library | 100% | 100% | 100% | 100% |
+| API Routes | 85.71% | 100% | 69.89% | 83.33% |
+| Dashboard | 56.12% | 70.58% | 61.11% | 57.29% |
+| Settings | 63.57% | 48.33% | 57.14% | 65.94% |
+| Query Log | 54.26% | 52.5% | 53.16% | 56.5% |
+
+### CI/CD Pipeline
+
+The project uses GitHub Actions for automated testing and quality assurance:
+
+- **Build & Test:** Runs on every push and PR
+- **Linting:** ESLint with zero warnings allowed
+- **Type Checking:** Full TypeScript compilation check
+- **Coverage:** Automated coverage reporting with Codecov
+- **Security:** Dependency vulnerability scanning
+- **Performance:** Lighthouse performance monitoring
+- **Docker:** Automated container builds and publishing
+
+### Workflow Files
+
+- `.github/workflows/build-only.yml` - Main CI pipeline
+- `.github/workflows/security.yml` - Security and dependency checks
+- `.github/workflows/quality.yml` - Code quality monitoring
+- `.github/workflows/performance.yml` - Performance and Lighthouse
+- `.github/workflows/docker-publish.yml` - Docker publishing
 ## ⚙️ Environment Variables
 
 **Required:**

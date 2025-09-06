@@ -52,11 +52,11 @@ export default function NewsPopup({
 
         <div className="overflow-auto max-h-[72vh]">
           {mode === 'raw' ? (
-            <pre className="p-6 font-mono text-sm whitespace-pre-wrap break-words">
+            <pre data-testid="news-raw-content" className="p-6 font-mono text-sm whitespace-pre-wrap break-words">
               {content}
             </pre>
           ) : (
-            <div className="p-6 news-preview" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+            <div data-testid="news-preview-content" className="p-6 news-preview" dangerouslySetInnerHTML={{ __html: safeHtml }} />
           )}
         </div>
 

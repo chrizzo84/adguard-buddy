@@ -9,13 +9,13 @@ export async function httpRequest(opts: { method: 'GET' | 'POST' | 'PUT' | 'DELE
       const isHttps = parsed.protocol === 'https:';
       const lib = isHttps ? https : http;
 
-      const requestOptions: RequestOptions = {
-        method: opts.method,
-        hostname: parsed.hostname,
-        port: parsed.port || (isHttps ? 443 : 80),
-        path: parsed.pathname + parsed.search,
-        headers: opts.headers || {},
-      };
+        const requestOptions: RequestOptions = {
+          method: opts.method,
+          hostname: parsed.hostname,
+          port: parsed.port ? Number(parsed.port) : (isHttps ? 443 : 80),
+          path: parsed.pathname + parsed.search,
+          headers: opts.headers || {},
+        };
 
       if (isHttps && opts.allowInsecure) {
         (requestOptions as RequestOptions & { rejectUnauthorized?: boolean }).rejectUnauthorized = false;
