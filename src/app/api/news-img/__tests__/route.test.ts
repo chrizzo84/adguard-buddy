@@ -1,5 +1,6 @@
 import { GET } from '../route';
 import { promises as fs } from 'fs';
+import path from 'path';
 
 // Mock fs
 jest.mock('fs', () => ({
@@ -28,7 +29,7 @@ describe('/api/news-img', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/png');
     expect(response.headers.get('Cache-Control')).toBe('public, max-age=3600');
-    expect(mockReadFile).toHaveBeenCalledWith('/Users/chrizzo/Documents/GitHub/adguard-buddy/pics/test.png');
+    expect(mockReadFile).toHaveBeenCalledWith(path.join(process.cwd(), 'pics', 'test.png'));
     // Don't try to call .json() on binary response
   });
 
@@ -44,7 +45,7 @@ describe('/api/news-img', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/jpeg');
-    expect(mockReadFile).toHaveBeenCalledWith('/Users/chrizzo/Documents/GitHub/adguard-buddy/pics/photo.jpg');
+    expect(mockReadFile).toHaveBeenCalledWith(path.join(process.cwd(), 'pics', 'photo.jpg'));
   });
 
   it('should serve SVG image successfully', async () => {
@@ -59,6 +60,7 @@ describe('/api/news-img', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(mockReadFile).toHaveBeenCalledWith(path.join(process.cwd(), 'pics', 'icon.svg'));
   });
 
   it('should serve GIF image successfully', async () => {
@@ -73,6 +75,7 @@ describe('/api/news-img', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('Content-Type')).toBe('image/gif');
+    expect(mockReadFile).toHaveBeenCalledWith(path.join(process.cwd(), 'pics', 'animation.gif'));
   });
 
   it('should serve unknown file type as octet-stream', async () => {
