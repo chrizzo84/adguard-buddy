@@ -34,9 +34,14 @@ jobs:
         run: pnpm run build
 
       - name: Start application
-        run: pnpm start &
+        run: |
+          # Free port 3000 if something is left bound (avoid EADDRINUSE in CI)
+          npx kill-port 3000 || true
+          pnpm start &
         env:
           PORT: 3000
+          # Limit outbound concurrency in the server to avoid saturating sockets during CI
+          ADGUARD_BUDDY_HTTP_MAX_CONCURRENCY: '2'
 
       - name: Wait for app to be ready
         run: |
