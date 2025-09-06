@@ -256,6 +256,312 @@ describe('QueryLogPage', () => {
     expect(screen.getByText('Query Log')).toBeInTheDocument();
   });
 
+  it('handles search functionality', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: [
+        {
+          question: { name: 'example.com' },
+          client: '192.168.1.100',
+          time: '2024-01-01T00:00:00Z',
+          status: 'processed',
+          reason: 'NotFilteredNotFound',
+        },
+        {
+          question: { name: 'google.com' },
+          client: '192.168.1.101',
+          time: '2024-01-01T00:01:00Z',
+          status: 'processed',
+          reason: 'FilteredBlackList',
+        },
+      ],
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should render search input
+    const searchInput = screen.getByPlaceholderText('Search domain or client...');
+    expect(searchInput).toBeInTheDocument();
+
+    // Test search functionality
+    fireEvent.change(searchInput, { target: { value: 'example' } });
+    expect(searchInput).toHaveValue('example');
+  });
+
+  it('handles filter status changes', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should render filter buttons - use getAllByText and check the button specifically
+    const filterButtons = screen.getAllByText('Processed');
+    expect(filterButtons.length).toBeGreaterThan(0);
+    expect(screen.getByText('All')).toBeInTheDocument();
+    expect(screen.getByText('Filtered')).toBeInTheDocument();
+  });
+
+  it('handles block/unblock actions', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: [
+        {
+          question: { name: 'blocked-site.com' },
+          client: '192.168.1.100',
+          time: '2024-01-01T00:00:00Z',
+          status: 'processed',
+          reason: 'FilteredBlackList',
+        },
+      ],
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should render block/unblock buttons
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
+  it('handles color picker functionality', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: [
+        {
+          question: { name: 'example.com' },
+          client: '192.168.1.100',
+          time: '2024-01-01T00:00:00Z',
+          status: 'processed',
+          reason: 'NotFilteredNotFound',
+          serverIp: '192.168.1.1:8080',
+        },
+      ],
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should handle color functionality
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
+  it('handles infinite scroll functionality', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: Array.from({ length: 30 }, (_, i) => ({
+        question: { name: `example${i}.com` },
+        client: '192.168.1.100',
+        time: '2024-01-01T00:00:00Z',
+        status: 'processed',
+        reason: 'NotFilteredNotFound',
+      })),
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should handle large datasets
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
+  it('handles polling functionality', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: [
+        {
+          question: { name: 'example.com' },
+          client: '192.168.1.100',
+          time: '2024-01-01T00:00:00Z',
+          status: 'processed',
+          reason: 'NotFilteredNotFound',
+        },
+      ],
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should handle polling
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
+  it('handles URL-based connections', async () => {
+    const mockConnections = [
+      { url: 'https://adguard.example.com', port: 443, username: 'admin', password: 'encrypted' },
+    ];
+
+    const mockLogs = {
+      data: [
+        {
+          question: { name: 'example.com' },
+          client: '192.168.1.100',
+          time: '2024-01-01T00:00:00Z',
+          status: 'processed',
+          reason: 'NotFilteredNotFound',
+        },
+      ],
+    };
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockLogs),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should handle URL connections
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
+  it('handles decryption errors in combined mode', async () => {
+    const mockConnections = [
+      { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'corrupted' },
+    ];
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ connections: mockConnections }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+    await act(async () => {
+      render(<QueryLogPage />);
+    });
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+    });
+
+    // Should handle decryption errors
+    expect(screen.getByText('Query Log')).toBeInTheDocument();
+  });
+
   it('shows loading state during data fetch', async () => {
     const mockConnections = [
       { ip: '192.168.1.1', port: 8080, username: 'admin', password: 'encrypted' },

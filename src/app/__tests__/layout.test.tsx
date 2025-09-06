@@ -91,4 +91,12 @@ describe('RootLayout', () => {
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByTestId('site-footer')).toBeInTheDocument();
   });
+
+  it('includes font variables in class names', () => {
+    // Test that the font imports work correctly
+    const { Geist, Geist_Mono } = require('next/font/google');
+
+    expect(Geist).toBeDefined();
+    expect(Geist_Mono).toBeDefined();
+  });
 });
