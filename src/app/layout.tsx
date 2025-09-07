@@ -1,41 +1,28 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { AppProviders } from "./components/AppProviders";
-import { SiteFooter } from "./components/SiteFooter";
+"use client"; // This is needed for useEffect
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import './globals.css'
+import { Inter } from 'next/font/google'
+import { AppProviders } from './components/AppProviders';
+import { useEffect } from 'react';
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "AdGuard Buddy",
-  description: "A simple tool to synchronize AdGuard Home instances.",
-};
+const inter = Inter({ subsets: ['latin'] })
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
+  useEffect(() => {
+    fetch('/api/start-autosync');
+  }, []);
+
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={inter.className}>
         <AppProviders>
-          <div className="flex flex-col min-h-screen">
-            <main className="flex-grow">{children}</main>
-            <SiteFooter />
-          </div>
+          {children}
         </AppProviders>
       </body>
     </html>
-  );
+  )
 }

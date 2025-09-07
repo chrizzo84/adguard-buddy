@@ -122,6 +122,10 @@ export default function SyncStatusPage() {
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [logModalTitle, setLogModalTitle] = useState<string>('');
   const [syncAllProgress, setSyncAllProgress] = useState<string | null>(null);
+  const [autosyncEnabled, setAutosyncEnabled] = useState(false);
+  const [autosyncInterval, setAutosyncInterval] = useState('15m');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [lastSyncLog, setLastSyncLog] = useState<string[]>([]);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -139,8 +143,8 @@ export default function SyncStatusPage() {
     }
 
     // Resolve connections by either ip or url (url stored without trailing slash)
-    const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === masterServerIp) || c.ip === masterServerIp);
-    const replicaConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === replicaIp) || c.ip === replicaIp);
+    const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/g, '') === masterServerIp) || c.ip === masterServerIp);
+    const replicaConn = connections.find(c => (c.url && c.url.replace(/\/$/g, '') === replicaIp) || c.ip === replicaIp);
 
     if (!masterConn || !replicaConn) {
         const errorMsg = "Error: Master or replica connection not found.";
@@ -293,8 +297,8 @@ export default function SyncStatusPage() {
 
     const allConnections: Connection[] = config.connections;
     // Normalize connection id: prefer URL (trimmed) else ip
-    const connId = (c: Connection) => (c.url && c.url.length > 0) ? c.url.replace(/\/$/, '') : c.ip;
-    const masterConn = allConnections.find(c => connId(c) === config.masterServerIp || c.ip === config.masterServerIp || (c.url && c.url.replace(/\/$/, '') === config.masterServerIp));
+    const connId = (c: Connection) => (c.url && c.url.length > 0) ? c.url.replace(/\/$/g, '') : c.ip;
+    const masterConn = allConnections.find(c => connId(c) === config.masterServerIp || c.ip === config.masterServerIp || (c.url && c.url.replace(/\/$/g, '') === config.masterServerIp));
     const replicaConns = allConnections.filter(c => connId(c) !== (config.masterServerIp || ''));
 
     setConnections(allConnections);
@@ -339,9 +343,30 @@ export default function SyncStatusPage() {
     }
   }, [encryptionKey]);
 
+  const fetchAutosyncStatus = useCallback(async () => {
+    try {
+      const settingsResponse = await fetch('/api/get-autosync-settings');
+      if (settingsResponse.ok) {
+        const settings = await settingsResponse.json();
+        setAutosyncEnabled(settings.enabled);
+        setAutosyncInterval(settings.interval);
+      }
+
+      const logResponse = await fetch('/api/get-last-sync-log');
+      if (logResponse.ok) {
+        const logData = await logResponse.json();
+        setLastSyncTime(logData.lastSyncTime);
+        setLastSyncLog(logData.log);
+      }
+    } catch (error) {
+      console.error('Could not fetch autosync status:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchAllSettings();
-  }, [fetchAllSettings]);
+    fetchAutosyncStatus();
+  }, [fetchAllSettings, fetchAutosyncStatus]);
 
   const SimpleDiffViewer = ({ masterData, replicaData }: { masterData: unknown, replicaData: unknown }) => (
       <div className="grid grid-cols-2 gap-4 p-2 mt-1 bg-gray-900/50 rounded-md text-xs">
@@ -406,7 +431,7 @@ export default function SyncStatusPage() {
                     const syncKey = `${ip}:${key}`;
                     const isSyncing = syncing === syncKey;
                     return (
-                        <li key={key}>
+                        <li key={key}> 
                             <div className="flex justify-between items-center p-2 rounded-md hover:bg-gray-800">
                                 <button onClick={() => setExpandedCategory(prev => (prev === key ? null : key))} className="flex-grow text-left flex items-center gap-2">
                                     <span>{key}</span>
@@ -508,31 +533,59 @@ export default function SyncStatusPage() {
       />
       <NavMenu />
       <h1 className="text-3xl font-extrabold mb-4 text-center dashboard-title">Sync Status</h1>
-      <div className="text-center text-gray-400 mb-8">
-        Comparing all servers against master: <strong className="text-primary font-mono">{masterServerIp || 'Not Set'}</strong>
-      </div>
 
-      {isLoading && <p className="text-center text-primary">Loading all server settings for comparison...</p>}
-      {error && <p className="text-center text-danger p-4 bg-danger-dark rounded-lg">{error}</p>}
-
-      {!isLoading && !error && (
-        <div className="text-center mb-8">
+      {autosyncEnabled ? (
+        <div className="adguard-card text-center">
+          <h2 className="font-semibold mb-4 card-title">Autosync is Enabled</h2>
+          <p className="text-primary mb-2">The next sync is scheduled to run in approximately {autosyncInterval}.</p>
+          <p className="text-gray-400 mb-4">Last sync: {lastSyncTime || 'Never'}</p>
+          <div className="text-left bg-gray-900 rounded-lg p-4 h-64 overflow-y-auto">
+            <h3 className="font-semibold mb-2 text-primary">Last Sync Log</h3>
+            {lastSyncLog.length > 0 ? (
+              lastSyncLog.map((line, index) => (
+                <div key={index} className="font-mono text-sm text-gray-300">{line}</div>
+              ))
+            ) : (
+              <p className="text-gray-500">No log available.</p>
+            )}
+          </div>
           <button
             onClick={handleSyncAll}
-            className="px-4 py-2 font-bold text-primary bg-gray-800 rounded-lg border-neon border hover:bg-gray-700 transition-all duration-300 shadow-neon disabled:opacity-50"
+            className="mt-4 px-4 py-2 font-bold text-primary bg-gray-800 rounded-lg border-neon border hover:bg-gray-700 transition-all duration-300 shadow-neon disabled:opacity-50"
             disabled={!!syncAllProgress}
           >
-            {syncAllProgress || 'Sync All'}
+            {syncAllProgress || 'Run Manual Sync Now'}
           </button>
         </div>
-      )}
+      ) : (
+        <>
+          <div className="text-center text-gray-400 mb-8">
+            Comparing all servers against master: <strong className="text-primary font-mono">{masterServerIp || 'Not Set'}</strong>
+          </div>
 
-      {!isLoading && !error && (
-        <div className="space-y-8">
-            {Object.entries(replicaSettings).map(([ip, settings]) => (
-                <ComparisonCard key={ip} ip={ip} settings={settings} />
-            ))}
-        </div>
+          {isLoading && <p className="text-center text-primary">Loading all server settings for comparison...</p>}
+          {error && <p className="text-center text-danger p-4 bg-danger-dark rounded-lg">{error}</p>}
+
+          {!isLoading && !error && (
+            <div className="text-center mb-8">
+              <button
+                onClick={handleSyncAll}
+                className="px-4 py-2 font-bold text-primary bg-gray-800 rounded-lg border-neon border hover:bg-gray-700 transition-all duration-300 shadow-neon disabled:opacity-50"
+                disabled={!!syncAllProgress}
+              >
+                {syncAllProgress || 'Sync All'}
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !error && (
+            <div className="space-y-8">
+                {Object.entries(replicaSettings).map(([ip, settings]) => (
+                    <ComparisonCard key={ip} ip={ip} settings={settings} />
+                ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

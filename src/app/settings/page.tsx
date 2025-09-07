@@ -29,6 +29,8 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
+  const [autosyncEnabled, setAutosyncEnabled] = useState(false);
+  const [autosyncInterval, setAutosyncInterval] = useState('15m');
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const fetchSettings = useCallback(async () => {
@@ -46,9 +48,24 @@ export default function Settings() {
     }
   }, []);
 
+  const fetchAutosyncSettings = useCallback(async () => {
+    try {
+      const response = await fetch('/api/get-autosync-settings');
+      if (!response.ok) {
+        throw new Error('Failed to fetch autosync settings.');
+      }
+      const data = await response.json();
+      setAutosyncEnabled(data.enabled || false);
+      setAutosyncInterval(data.interval || '15m');
+    } catch (error) {
+      console.error('Could not fetch autosync settings:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchAutosyncSettings();
+  }, [fetchSettings, fetchAutosyncSettings]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -70,6 +87,34 @@ export default function Settings() {
         const err = error as Error;
         showNotification(`Error saving settings: ${err.message}`, 'error');
     }
+  };
+
+  const saveAutosyncSettings = async (enabled: boolean, interval: string) => {
+    try {
+      const response = await fetch('/api/save-autosync-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, interval }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save autosync settings.');
+      }
+      showNotification('Autosync settings saved.', 'success');
+    } catch (error) {
+      const err = error as Error;
+      showNotification(`Error saving autosync settings: ${err.message}`, 'error');
+    }
+  };
+
+  const handleAutosyncEnabledChange = (enabled: boolean) => {
+    setAutosyncEnabled(enabled);
+    saveAutosyncSettings(enabled, autosyncInterval);
+  };
+
+  const handleAutosyncIntervalChange = (interval: string) => {
+    setAutosyncInterval(interval);
+    saveAutosyncSettings(autosyncEnabled, interval);
   };
 
   const saveConnections = (conns: Connection[]) => {
@@ -300,7 +345,7 @@ export default function Settings() {
               <span className="text-primary">{conn.username}</span>
               <div className="ml-auto flex gap-2 items-center">
                 <button onClick={() => handleSetMaster(conn.ip || conn.url || '')} title="Set as master for sync">
-                  <svg className={`w-5 h-5 transition-colors ${masterServerIp === conn.ip ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                  <svg className={`w-5 h-5 transition-colors ${masterServerIp === (conn.ip || conn.url) ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`} viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
                 </button>
@@ -311,6 +356,37 @@ export default function Settings() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="mt-10 adguard-card">
+        <h2 className="font-semibold mb-4 card-title">Autosync Settings</h2>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-primary">Enable Autosync</span>
+          <label className="switch">
+            <input type="checkbox" checked={autosyncEnabled} onChange={e => handleAutosyncEnabledChange(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+        </div>
+        {autosyncEnabled && (
+          <div className="flex items-center justify-between">
+            <span className="text-primary">Sync Interval</span>
+            <select
+              value={autosyncInterval}
+              onChange={e => handleAutosyncIntervalChange(e.target.value)}
+              className="px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
+            >
+              <option value="1m">1 Minute</option>
+              <option value="5m">5 Minutes</option>
+              <option value="15m">15 Minutes</option>
+              <option value="30m">30 Minutes</option>
+              <option value="1h">1 Hour</option>
+              <option value="5h">5 Hours</option>
+              <option value="10h">10 Hours</option>
+              <option value="24h">24 Hours</option>
+              <option value="48h">48 Hours</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="mt-10 adguard-card">
