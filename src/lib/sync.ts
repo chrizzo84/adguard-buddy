@@ -369,22 +369,44 @@ export const doSync = async (
 }
 
 export const syncAll = async (log = fileLogger) => {
-    await log('Autosync started.');
+    const runId = Date.now().toString(36);
+    const baseLogger = log;
+    const logWithRun = async (message: string) => baseLogger(`[run:${runId}] ${message}`);
+    await logWithRun('Autosync started.');
 
     const { connections, masterServerIp } = await getConnections();
 
     if (!connections || !masterServerIp) {
         await log('Master server or connections not configured.');
+        await log('Autosync finished.');
         return;
     }
 
-    const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/g, '') === masterServerIp) || c.ip === masterServerIp);
+    type BasicConnection = { ip?: string; url?: string; port: number; username: string; password: string; allowInsecure?: boolean };
+    const masterConn = (connections as BasicConnection[]).find(c => (c.url && c.url.replace(/\/$/g, '') === masterServerIp) || c.ip === masterServerIp);
     if (!masterConn) {
         await log('Master server not found in connections list.');
+        await log('Autosync finished.');
         return;
     }
 
-    const replicaConns = connections.filter(c => (c.url && c.url.replace(/\/$/g, '') !== masterServerIp) && c.ip !== masterServerIp);
+    // A replica is any connection that is NOT the master. The previous implementation used an 'AND'
+    // between url and ip comparisons which caused IP-only replicas (without a url field) to be excluded,
+    // because the first clause (c.url && ...) evaluated to falsy and thus the whole condition failed.
+    // We instead exclude a connection only if it matches the master by IP or by normalized URL.
+    const replicaConns = (connections as BasicConnection[]).filter(c => !(
+        (c.url && c.url.replace(/\/$/g, '') === masterServerIp) ||
+        c.ip === masterServerIp
+    ));
+
+    if (replicaConns.length === 0) {
+        await log('No replica servers found.');
+        await log('Autosync finished.');
+        return;
+    }
+
+    await log(`Master server: ${masterConn.ip || masterConn.url}`);
+    await logWithRun(`Found ${replicaConns.length} replica server(s).`);
 
     const masterConnWithDecryptedPassword = {
         ...masterConn,
@@ -395,7 +417,20 @@ export const syncAll = async (log = fileLogger) => {
 
     const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'rewrites', 'blockedServices', 'accessList'];
 
-    for (const replica of replicaConns) {
+    // Helper to create a logger scoped to a replica (adds replica tag)
+    const makeReplicaLogger = (replicaLabel: string) => async (msg: string) => {
+        await baseLogger(`[run:${runId}] [replica:${replicaLabel}] ${msg}`);
+    };
+    // Helper to create a logger scoped to category within a replica
+    const makeCategoryLogger = (replicaLabel: string, category: string) => async (msg: string) => {
+        await baseLogger(`[run:${runId}] [replica:${replicaLabel}] [cat:${category}] ${msg}`);
+    };
+
+    for (let idx = 0; idx < replicaConns.length; idx++) {
+        const replica = replicaConns[idx];
+        const replicaLabel = String(replica.ip || replica.url);
+        const rLog = makeReplicaLogger(replicaLabel);
+        await rLog(`===== Replica ${idx + 1}/${replicaConns.length} START (${replicaLabel}) =====`);
         const replicaWithDecryptedPassword = {
             ...replica,
             password: CryptoJS.AES.decrypt(replica.password, encryptionKey).toString(CryptoJS.enc.Utf8)
@@ -404,19 +439,39 @@ export const syncAll = async (log = fileLogger) => {
         const replicaSettings = replicaSettingsResult.settings;
 
         const differences = SYNCABLE_KEYS.filter(key => {
-            const m = masterSettings[key];
-            const r = replicaSettings[key];
+            const m = masterSettings[key] as unknown as SettingsValue;
+            const r = replicaSettings[key] as unknown as SettingsValue;
             return !areSettingsEqual(m, r);
         });
 
+        if (differences.length === 0) {
+            await rLog('Replica is in sync with master.');
+        } else {
+            await rLog(`Found ${differences.length} categories to sync: ${differences.join(', ')}`);
+        }
+
         for (const category of differences) {
-            await log(`Syncing ${category} to ${replica.ip || replica.url}`);
+            const cLog = makeCategoryLogger(replicaLabel, category);
+            await cLog('--- CATEGORY START ---');
+            const catStart = Date.now();
             const sourceDecrypted = CryptoJS.AES.decrypt(masterConn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
             const destDecrypted = CryptoJS.AES.decrypt(replica.password, encryptionKey).toString(CryptoJS.enc.Utf8);
 
-            await doSync(log, { ...masterConn, password: sourceDecrypted }, { ...replica, password: destDecrypted }, category);
+            try {
+                const masterForSync = { ...masterConn, ip: String(masterConn.ip || ''), password: sourceDecrypted } as unknown as { ip: string; port: number; username: string; password: string; url?: string; allowInsecure?: boolean };
+                const replicaForSync = { ...replica, ip: String(replica.ip || ''), password: destDecrypted } as unknown as { ip: string; port: number; username: string; password: string; url?: string; allowInsecure?: boolean };
+                await doSync(cLog, masterForSync, replicaForSync, category);
+                const dur = Date.now() - catStart;
+                await cLog(`SUCCESS in ${dur}ms`);
+            } catch (error) {
+                const err = error as Error;
+                const dur = Date.now() - catStart;
+                await cLog(`FAIL after ${dur}ms: ${err.message}`);
+            }
+            await cLog('--- CATEGORY END ---');
         }
+        await rLog(`===== Replica ${idx + 1}/${replicaConns.length} END (${replicaLabel}) =====`);
     }
 
-    await log('Autosync finished.');
+    await logWithRun('Autosync finished.');
 };

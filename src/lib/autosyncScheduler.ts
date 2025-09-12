@@ -1,11 +1,12 @@
 import { syncAll } from './sync';
 import fs from 'fs/promises';
 import path from 'path';
+import cron from 'node-cron';
 
 const dataDir = path.join(process.cwd(), '.data');
 const autosyncConfigFile = path.join(dataDir, 'autosync.json');
 
-let timer: NodeJS.Timeout | null = null;
+let cronJob: cron.ScheduledTask | null = null;
 
 const getAutosyncSettings = async () => {
   try {
@@ -16,38 +17,42 @@ const getAutosyncSettings = async () => {
   }
 };
 
-const getIntervalMilliseconds = (interval: string): number => {
-  const unit = interval.slice(-1);
-  const value = parseInt(interval.slice(0, -1), 10);
-  switch (unit) {
-    case 'm':
-      return value * 60 * 1000;
-    case 'h':
-      return value * 60 * 60 * 1000;
-    default:
-      return 15 * 60 * 1000; // default to 15 minutes
-  }
+const getCronExpression = (interval: string): string => {
+    const unit = interval.slice(-1);
+    const value = parseInt(interval.slice(0, -1), 10);
+
+    if (unit === 'm') {
+        return `*/${value} * * * *`;
+    }
+    if (unit === 'h') {
+        return `0 */${value} * * *`;
+    }
+    // default to every 15 minutes
+    return '*/15 * * * *';
 };
 
 export const startAutosyncScheduler = async () => {
-  if (timer) {
-    clearInterval(timer);
+  console.log('Attempting to start autosync scheduler...');
+  if (cronJob) {
+    console.log('Stopping existing cron job.');
+    cronJob.stop();
   }
 
   const settings = await getAutosyncSettings();
+  console.log('Autosync settings:', settings);
   if (settings.enabled) {
-    const interval = getIntervalMilliseconds(settings.interval);
-    timer = setInterval(syncAll, interval);
-    console.log(`Autosync scheduler started with interval ${settings.interval}.`);
+    const cronExpression = getCronExpression(settings.interval);
+    cronJob = cron.schedule(cronExpression, () => syncAll());
+    console.log(`Autosync scheduler started with cron expression ${cronExpression}.`);
   } else {
     console.log('Autosync scheduler is disabled.');
   }
 };
 
 export const stopAutosyncScheduler = () => {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
+  if (cronJob) {
+    cronJob.stop();
+    cronJob = null;
     console.log('Autosync scheduler stopped.');
   }
 };

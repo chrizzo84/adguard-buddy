@@ -6,7 +6,7 @@ export async function GET() {
         const data = await getConnections();
         return NextResponse.json(data);
     } catch (error) {
-        const err = error as Error;
-        return NextResponse.json({ message: err.message }, { status: 500 });
+        const err = error as Error & { originalMessage?: string };
+        return NextResponse.json({ message: err.message, error: err.originalMessage }, { status: 500 });
     }
 }

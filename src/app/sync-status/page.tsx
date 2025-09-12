@@ -125,7 +125,9 @@ export default function SyncStatusPage() {
   const [autosyncEnabled, setAutosyncEnabled] = useState(false);
   const [autosyncInterval, setAutosyncInterval] = useState('15m');
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [lastSyncLog, setLastSyncLog] = useState<string[]>([]);
+  const [nextSyncTime, setNextSyncTime] = useState<string | null>(null);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -219,7 +221,6 @@ export default function SyncStatusPage() {
                 }
             }
         }
-        if (!bulkMode) setTimeout(() => fetchAllSettings(), 1000);
         console.log(`[SYNC] Completed sync: ${category} from ${masterConn.ip || masterConn.url} to ${replicaConn.ip || replicaConn.url}`);
 
     } catch (e: unknown) {
@@ -232,7 +233,15 @@ export default function SyncStatusPage() {
         }
         console.error(`[SYNC] Failed sync: ${category} from ${masterConn?.ip || masterConn?.url} to ${replicaConn?.ip || replicaConn?.url}:`, e);
     } finally {
-        if (!bulkMode) setSyncing(null);
+        if (!bulkMode) {
+          setSyncing(null);
+          // Refresh autosync status after individual sync with longer delay
+          console.log('Setting timeout for fetchAutosyncStatus...');
+          setTimeout(() => {
+            console.log('Timeout callback executed, calling fetchAutosyncStatus...');
+            fetchAutosyncStatus();
+          }, 5000); // Increased delay to ensure log file is written
+        }
     }
   };
 
@@ -274,8 +283,12 @@ export default function SyncStatusPage() {
     setSyncLogs(prev => [...prev, `Bulk sync completed! Processed ${totalTasks} tasks.`]);
     console.log(`[SYNC-ALL] Bulk sync completed: ${totalTasks} tasks processed successfully`);
     showNotification('Sync all completed.', 'success');
-    // Refresh settings after sync all
-    setTimeout(() => fetchAllSettings(), 1000);
+    // Refresh settings and autosync status after sync all
+    setTimeout(() => {
+      console.log('Refreshing settings and autosync status after bulk sync...');
+      fetchAllSettings();
+      fetchAutosyncStatus();
+    }, 3000);
   };
 
   const fetchAllSettings = useCallback(async () => {
@@ -345,18 +358,34 @@ export default function SyncStatusPage() {
 
   const fetchAutosyncStatus = useCallback(async () => {
     try {
+      console.log('Fetching autosync status...');
       const settingsResponse = await fetch('/api/get-autosync-settings');
       if (settingsResponse.ok) {
         const settings = await settingsResponse.json();
+        console.log('Autosync settings:', settings);
         setAutosyncEnabled(settings.enabled);
         setAutosyncInterval(settings.interval);
+      } else {
+        console.warn('Failed to fetch autosync settings:', settingsResponse.status);
       }
 
       const logResponse = await fetch('/api/get-last-sync-log');
       if (logResponse.ok) {
         const logData = await logResponse.json();
-        setLastSyncTime(logData.lastSyncTime);
-        setLastSyncLog(logData.log);
+        console.log('Last sync log data:', logData);
+        if (logData.lastSyncTime) {
+          console.log('Setting last sync time to:', logData.lastSyncTime);
+          setLastSyncTime(logData.lastSyncTime);
+          console.log('Last sync time set successfully');
+        } else {
+          console.log('No last sync time found in log data');
+        }
+        if (logData.runId) {
+          setLastRunId(logData.runId || null);
+        }
+        setLastSyncLog(logData.log || []);
+      } else {
+        console.warn('Failed to fetch last sync log:', logResponse.status);
       }
     } catch (error) {
       console.error('Could not fetch autosync status:', error);
@@ -367,6 +396,54 @@ export default function SyncStatusPage() {
     fetchAllSettings();
     fetchAutosyncStatus();
   }, [fetchAllSettings, fetchAutosyncStatus]);
+
+  useEffect(() => {
+    console.log('Timer useEffect triggered:', { autosyncEnabled, lastSyncTime, autosyncInterval });
+    if (autosyncEnabled && lastSyncTime && autosyncInterval) {
+      const getIntervalMilliseconds = (interval: string): number => {
+        const unit = interval.slice(-1);
+        const value = parseInt(interval.slice(0, -1), 10);
+        switch (unit) {
+          case 'm':
+            return value * 60 * 1000;
+          case 'h':
+            return value * 60 * 60 * 1000;
+          default:
+            return 15 * 60 * 1000; // default to 15 minutes
+        }
+      };
+
+      const intervalId = setInterval(() => {
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (isNaN(lastSync)) { 
+          console.log('Invalid lastSync time:', lastSyncTime);
+          setNextSyncTime('Unknown'); 
+          return; 
+        }
+        const interval = getIntervalMilliseconds(autosyncInterval);
+        const nextSync = lastSync + interval;
+        const remaining = nextSync - Date.now();
+        console.log('Timer calculation:', { lastSyncTime, interval, nextSync, remaining });
+
+        if (remaining <= 0) {
+          setNextSyncTime('Now');
+        } else {
+          const hours = Math.floor(remaining / (1000 * 60 * 60));
+          const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+          const parts = [] as string[];
+          if (hours > 0) parts.push(`${hours}h`);
+          if (minutes > 0 || hours > 0) parts.push(`${minutes}m`);
+          parts.push(`${seconds}s`);
+          setNextSyncTime(parts.join(' '));
+        }
+      }, 1000);
+
+      return () => clearInterval(intervalId);
+    } else {
+      console.log('Timer useEffect conditions not met');
+    }
+  }, [autosyncEnabled, lastSyncTime, autosyncInterval]);
 
   const SimpleDiffViewer = ({ masterData, replicaData }: { masterData: unknown, replicaData: unknown }) => (
       <div className="grid grid-cols-2 gap-4 p-2 mt-1 bg-gray-900/50 rounded-md text-xs">
@@ -537,8 +614,9 @@ export default function SyncStatusPage() {
       {autosyncEnabled ? (
         <div className="adguard-card text-center">
           <h2 className="font-semibold mb-4 card-title">Autosync is Enabled</h2>
-          <p className="text-primary mb-2">The next sync is scheduled to run in approximately {autosyncInterval}.</p>
-          <p className="text-gray-400 mb-4">Last sync: {lastSyncTime || 'Never'}</p>
+          <p className="text-primary mb-2">Next sync in: {nextSyncTime || 'Calculating...'}</p>
+          <p className="text-gray-400 mb-1">Last sync: {lastSyncTime || 'Never'}</p>
+          {lastRunId && <p className="text-gray-600 text-xs mb-4">Run ID: <span className="font-mono">{lastRunId}</span></p>}
           <div className="text-left bg-gray-900 rounded-lg p-4 h-64 overflow-y-auto">
             <h3 className="font-semibold mb-2 text-primary">Last Sync Log</h3>
             {lastSyncLog.length > 0 ? (

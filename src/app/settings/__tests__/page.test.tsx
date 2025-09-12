@@ -202,26 +202,47 @@ describe('Settings', () => {
   });
 
   it('saves new connection successfully', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ connections: [], masterServerIp: null }),
-      })
-      .mockResolvedValueOnce({
+    // Mock fetch based on URL
+    mockFetch.mockImplementation((url) => {
+      if (url === '/api/get-connections') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ connections: [], masterServerIp: null }),
+        });
+      }
+      if (url === '/api/get-autosync-settings') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ enabled: false, interval: '15m' }),
+        });
+      }
+      if (url === '/api/save-connections') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'connected' }),
+        });
+      }
+      if (url === '/api/check-adguard') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'connected' }),
+        });
+      }
+      // Default fallback
+      return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ status: 'connected' }),
       });
+    });
 
     await act(async () => {
       render(<Settings />);
     });
 
+    // Wait for initial fetches
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith('/api/get-connections');
+      expect(mockFetch).toHaveBeenCalledWith('/api/get-autosync-settings');
     });
 
     const targetInput = screen.getByPlaceholderText(/IP or URL/);
@@ -265,7 +286,7 @@ describe('Settings', () => {
     });
 
     // Should not call save API when required fields are missing
-    expect(mockFetch).toHaveBeenCalledTimes(1); // Only the initial fetch
+    expect(mockFetch).toHaveBeenCalledTimes(2); // Initial fetches: get-connections and get-autosync-settings
   });
 
   it('switches theme', async () => {
@@ -444,7 +465,7 @@ describe('Settings', () => {
     });
 
     // Should not call save API
-    expect(mockFetch).toHaveBeenCalledTimes(1); // Only initial fetch
+    expect(mockFetch).toHaveBeenCalledTimes(2); // Only initial fetches
   });
 
   it('handles URL-based connections', async () => {

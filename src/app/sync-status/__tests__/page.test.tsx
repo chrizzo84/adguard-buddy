@@ -107,6 +107,18 @@ describe('SyncStatusPage', () => {
           json: async () => ({ settings: mockSettings }),
         };
       }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: async () => ({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: async () => ({ log: [] }),
+        };
+      }
       throw new Error(`Unhandled fetch call: ${url}`);
     });
 
@@ -164,6 +176,18 @@ describe('SyncStatusPage', () => {
             }
             return { ok: false, json: async () => ({ message: 'Sync failed' }) };
         }
+        if (url === '/api/get-autosync-settings') {
+            return {
+                ok: true,
+                json: async () => ({ enabled: false, interval: '5m' }),
+            };
+        }
+        if (url === '/api/get-last-sync-log') {
+            return {
+                ok: true,
+                json: async () => ({ log: [] }),
+            };
+        }
         throw new Error(`Unhandled fetch call: ${url}`);
     });
 
@@ -198,6 +222,18 @@ describe('SyncStatusPage', () => {
         return {
           ok: true,
           json: async () => ({ settings: mockSettings }),
+        };
+      }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: async () => ({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: async () => ({ log: [] }),
         };
       }
       throw new Error(`Unhandled fetch call: ${url}`);
@@ -247,6 +283,18 @@ describe('SyncStatusPage', () => {
           };
         }
       }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: async () => ({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: async () => ({ log: [] }),
+        };
+      }
       throw new Error(`Unhandled fetch call: ${url}`);
     });
 
@@ -286,6 +334,18 @@ describe('SyncStatusPage', () => {
         return {
           ok: true,
           json: async () => ({ settings: mockSettings }),
+        };
+      }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: async () => ({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: async () => ({ log: [] }),
         };
       }
       throw new Error(`Unhandled fetch call: ${url}`);
@@ -343,6 +403,18 @@ describe('SyncStatusPage', () => {
           })
         };
       }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: async () => ({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: async () => ({ log: [] }),
+        };
+      }
       throw new Error(`Unhandled fetch call: ${url}`);
     });
 
@@ -364,9 +436,26 @@ describe('SyncStatusPage', () => {
   });
 
   it('handles master server not configured', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ connections: [], masterServerIp: null }),
+    mockFetch.mockImplementation(async (url) => {
+      if (url === '/api/get-connections') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({ connections: [], masterServerIp: null }),
+        };
+      }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({ log: [] }),
+        };
+      }
+      throw new Error(`Unhandled fetch call: ${url}`);
     });
 
     await act(async () => {
@@ -383,12 +472,29 @@ describe('SyncStatusPage', () => {
       { ip: '192.168.1.2', port: 8080, username: 'admin', password: 'encrypted' },
     ];
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({
-        connections: mockConnections,
-        masterServerIp: '192.168.1.1'
-      }),
+    mockFetch.mockImplementation(async (url) => {
+      if (url === '/api/get-connections') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({
+            connections: mockConnections,
+            masterServerIp: '192.168.1.1'
+          }),
+        };
+      }
+      if (url === '/api/get-autosync-settings') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({ enabled: false, interval: '5m' }),
+        };
+      }
+      if (url === '/api/get-last-sync-log') {
+        return {
+          ok: true,
+          json: () => Promise.resolve({ log: [] }),
+        };
+      }
+      throw new Error(`Unhandled fetch call: ${url}`);
     });
 
     await act(async () => {
