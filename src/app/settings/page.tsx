@@ -110,65 +110,65 @@ export default function Settings() {
   const handleSave = async () => {
     if (!form.target || !form.username) return;
 
-    let newConnection: Connection;
     const isUpdating = editingIndex !== null;
+    const connectionDetails: Partial<Connection> = {
+      username: form.username,
+      allowInsecure: form.allowInsecure,
+    };
+
+    if (form.password) {
+      connectionDetails.password = CryptoJS.AES.encrypt(form.password, encryptionKey).toString();
+    } else if (!isUpdating) {
+      showNotification("Password is required for new connections.", 'error');
+      return;
+    }
+
+    if (form.target.startsWith('http')) {
+      connectionDetails.url = form.target;
+      try {
+        const parsed = new URL(form.target);
+        connectionDetails.port = parsed.port ? parseInt(parsed.port, 10) : (parsed.protocol === 'https:' ? 443 : 80);
+      } catch {
+        connectionDetails.port = form.port;
+      }
+    } else {
+      const [host, port] = form.target.split(':');
+      if (host && port && !isNaN(parseInt(port, 10))) {
+        connectionDetails.ip = host;
+        connectionDetails.port = parseInt(port, 10);
+      } else {
+        connectionDetails.ip = form.target;
+        connectionDetails.port = form.port;
+      }
+    }
+
+    const newConnections = [...connections];
+    let newConnection: Connection;
 
     if (isUpdating) {
-      const updatedConnections = [...connections];
-      const connectionToUpdate = { ...updatedConnections[editingIndex as number] };
-
-      // store either url or ip depending on target
-      if (form.target && String(form.target).startsWith('http')) {
-        connectionToUpdate.url = form.target;
-        connectionToUpdate.ip = undefined;
-      } else {
-        connectionToUpdate.ip = form.target;
-        connectionToUpdate.url = undefined;
-      }
-      connectionToUpdate.port = form.port;
-      connectionToUpdate.username = form.username;
-      connectionToUpdate.allowInsecure = form.allowInsecure;
-
-      if (form.password) {
-        connectionToUpdate.password = CryptoJS.AES.encrypt(form.password, encryptionKey).toString();
-      }
-      updatedConnections[editingIndex as number] = connectionToUpdate;
-      newConnection = connectionToUpdate;
-      saveConnections(updatedConnections);
+      const oldConnection = newConnections[editingIndex as number];
+      newConnection = { ...oldConnection, ...connectionDetails } as Connection;
+      if (connectionDetails.url) newConnection.ip = undefined;
+      if (connectionDetails.ip) newConnection.url = undefined;
+      newConnections[editingIndex as number] = newConnection;
     } else {
-      if (!form.password) {
-        showNotification("Password is required for new connections.", 'error');
-        return;
-      }
-      const encrypted = CryptoJS.AES.encrypt(form.password, encryptionKey).toString();
-      if (form.target && String(form.target).startsWith('http')) {
-        // extract port from URL if present
-        let usePort = form.port;
-        try {
-          const parsed = new URL(form.target);
-          if (parsed.port) usePort = parseInt(parsed.port, 10);
-          else usePort = parsed.protocol === 'https:' ? 443 : 80;
-        } catch {
-          // ignore
-        }
-        newConnection = { url: form.target, port: usePort, username: form.username, password: encrypted, allowInsecure: form.allowInsecure } as Connection;
-      } else {
-        newConnection = { ip: form.target, port: form.port, username: form.username, password: encrypted, allowInsecure: form.allowInsecure } as Connection;
-      }
-      saveConnections([...connections, newConnection]);
+      newConnection = connectionDetails as Connection;
+      newConnections.push(newConnection);
     }
+
+    saveConnections(newConnections);
 
     showNotification(`Connection ${isUpdating ? 'updated' : 'saved'}. Testing...`, 'success');
     const testSuccess = await handleTest(newConnection, true);
 
-  if(testSuccess) {
-    showNotification(`Connection to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} successful!`, 'success');
-  } else {
-    showNotification(`Could not connect to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} after saving. Please check details.`, 'error');
-  }
+    if(testSuccess) {
+      showNotification(`Connection to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} successful!`, 'success');
+    } else {
+      showNotification(`Could not connect to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} after saving. Please check details.`, 'error');
+    }
 
     setEditingIndex(null);
-  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
+    setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleEdit = (index: number) => {
