@@ -123,7 +123,7 @@ export default function Settings() {
       return;
     }
 
-    if (form.target.startsWith('http')) {
+    if (typeof form.target === "string" && form.target.startsWith('http')) {
       connectionDetails.url = form.target;
       try {
         const parsed = new URL(form.target);
