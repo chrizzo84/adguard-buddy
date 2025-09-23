@@ -38,6 +38,10 @@ export function SiteFooter() {
         <span>Repo</span>
       </Link>
       <span className="hidden sm:inline text-white/30">•</span>
+      <span className="whitespace-nowrap">
+        v{process.env.NEXT_PUBLIC_APP_VERSION}
+      </span>
+      <span className="hidden sm:inline text-white/30">•</span>
       <button
         onClick={openNews}
         className="inline-flex items-center gap-1 text-white/60 hover:text-white transition-colors"
