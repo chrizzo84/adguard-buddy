@@ -48,3 +48,5 @@ next-env.d.ts
 # data files
 .data/
 logs/app.log
+logs/auto-sync-logs.json
+auto-sync-config.json

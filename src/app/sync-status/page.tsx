@@ -3,6 +3,7 @@ import NavMenu from "../components/NavMenu";
 import { useState, useEffect, useCallback, useRef } from "react";
 import CryptoJS from "crypto-js";
 import { components } from "../../types/adguard";
+import { SyncLogEntry, AutoSyncConfig } from "@/types/auto-sync";
 
 // Types
 type Connection = {
@@ -121,6 +122,16 @@ export default function SyncStatusPage() {
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [showLogModal, setShowLogModal] = useState<boolean>(false);
   const [logModalTitle, setLogModalTitle] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'status' | 'auto-sync'>('status');
+  const [autoSyncConfig, setAutoSyncConfig] = useState<AutoSyncConfig | null>(null);
+  const [autoSyncLogs, setAutoSyncLogs] = useState<SyncLogEntry[]>([]);
+  const [autoSyncRunning, setAutoSyncRunning] = useState(false);
+  const [autoSyncPaused, setAutoSyncPaused] = useState(false);
+  const [nextSyncTime, setNextSyncTime] = useState<number | null>(null);
+  const [filterReplica, setFilterReplica] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'error'>('all');
+  const [isTriggering, setIsTriggering] = useState(false);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -128,7 +139,66 @@ export default function SyncStatusPage() {
     setTimeout(() => setNotification(null), 5000);
   };
 
+  const fetchAutoSyncStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auto-sync-config');
+      if (!response || !response.ok) return;
+      
+      const data = await response.json();
+      if (!data) return;
+      
+      setAutoSyncConfig(data.config);
+      setAutoSyncLogs(data.recentLogs || []);
+      setAutoSyncRunning(data.isRunning);
+      setAutoSyncPaused(data.isPaused || false);
+      setNextSyncTime(data.nextSync);
+    } catch (error) {
+      console.error('Failed to fetch auto-sync status:', error);
+    }
+  }, []);
+
+  const triggerAutoSync = async () => {
+    if (!autoSyncConfig?.enabled) {
+      showNotification('Auto-sync is not enabled. Enable it in Settings first.', 'error');
+      return;
+    }
+    if (autoSyncPaused) {
+      showNotification('Auto-sync is currently paused. Please resume auto-sync before triggering.', 'error');
+      return;
+    }
+
+    setIsTriggering(true);
+    try {
+      const response = await fetch('/api/auto-sync-trigger', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to trigger auto-sync');
+      }
+
+      showNotification('Auto-sync triggered successfully! Check the logs below.', 'success');
+      
+      // Refresh status after a short delay to see the results
+      setTimeout(() => {
+        fetchAutoSyncStatus();
+      }, 2000);
+    } catch (error) {
+      const err = error as Error;
+      showNotification(`Failed to trigger auto-sync: ${err.message}`, 'error');
+    } finally {
+      setIsTriggering(false);
+    }
+  };
+
   const handleSync = async (replicaIp: string, category: string) => {
+    // Prevent manual sync if auto-sync is active
+    if (autoSyncRunning && !autoSyncPaused) {
+      showNotification('Manual sync is disabled while auto-sync is active. Pause or disable auto-sync first.', 'error');
+      return;
+    }
+
     const syncKey = `${replicaIp}:${category}`;
     setSyncing(syncKey);
     setSyncLogs([]);
@@ -270,7 +340,12 @@ export default function SyncStatusPage() {
 
   useEffect(() => {
     fetchAllSettings();
-  }, [fetchAllSettings]);
+    fetchAutoSyncStatus();
+    
+    // Refresh auto-sync status every 10 seconds
+    const interval = setInterval(fetchAutoSyncStatus, 10000);
+    return () => clearInterval(interval);
+  }, [fetchAllSettings, fetchAutoSyncStatus]);
 
   const SimpleDiffViewer = ({ masterData, replicaData }: { masterData: unknown, replicaData: unknown }) => (
       <div className="grid grid-cols-2 gap-4 p-2 mt-1 bg-gray-900/50 rounded-md text-xs">
@@ -343,8 +418,9 @@ export default function SyncStatusPage() {
                                 </button>
                                 <button
                                     onClick={() => handleSync(ip, key)}
-                                    className="px-3 py-1 text-xs text-primary border border-neon rounded-md disabled:opacity-50"
-                                    disabled={isSyncing}
+                                    className="px-3 py-1 text-xs text-primary border border-neon rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={isSyncing || (autoSyncRunning && !autoSyncPaused)}
+                                    title={autoSyncRunning && !autoSyncPaused ? 'Manual sync disabled while auto-sync is active' : ''}
                                 >
                                     {isSyncing ? 'Syncing...' : 'Sync'}
                                 </button>
@@ -387,6 +463,240 @@ export default function SyncStatusPage() {
     );
   };
 
+  const formatTimeAgo = (timestamp: number | null): string => {
+    if (!timestamp) return 'Never';
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const formatNextSync = (timestamp: number | null): string => {
+    if (!timestamp) return 'N/A';
+    const seconds = Math.floor((timestamp - Date.now()) / 1000);
+    if (seconds < 0) return 'Any moment now';
+    if (seconds < 60) return `in ${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `in ${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `in ${hours}h`;
+  };
+
+  const filteredAutoSyncLogs = autoSyncLogs.filter(log => {
+    if (filterReplica !== 'all' && log.replicaId !== filterReplica) return false;
+    if (filterCategory !== 'all' && log.category !== filterCategory) return false;
+    if (filterStatus !== 'all' && log.status !== filterStatus) return false;
+    return true;
+  });
+
+  const AutoSyncHistoryView = () => {
+    if (!autoSyncConfig) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-gray-400">Loading auto-sync configuration...</p>
+        </div>
+      );
+    }
+
+    if (!autoSyncConfig.enabled) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-gray-400 mb-4">Auto-sync is currently disabled.</p>
+          <p className="text-sm text-gray-500">Enable auto-sync in Settings to start automatic synchronization.</p>
+        </div>
+      );
+    }
+
+    const uniqueReplicas = Array.from(new Set(autoSyncLogs.map(log => log.replicaId)));
+    const uniqueCategories = Array.from(new Set(autoSyncLogs.map(log => log.category)));
+    
+    const successCount = autoSyncLogs.filter(log => log.status === 'success').length;
+    const errorCount = autoSyncLogs.filter(log => log.status === 'error').length;
+    const successRate = autoSyncLogs.length > 0 ? ((successCount / autoSyncLogs.length) * 100).toFixed(1) : '0';
+
+    return (
+      <div className="space-y-6">
+        {/* Auto-Sync Status Card */}
+        <div className="adguard-card">
+          <h2 className="font-semibold mb-4 card-title">Auto-Sync Status</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">Status</p>
+              <p className="text-primary font-bold text-lg">
+                {autoSyncPaused ? '⏸ Paused' : autoSyncRunning ? '✓ Active' : '○ Inactive'}
+              </p>
+            </div>
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">Interval</p>
+              <p className="text-primary font-bold text-lg capitalize">
+                {autoSyncConfig.interval.replace('min', ' min').replace('hour', ' hr')}
+              </p>
+            </div>
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">Last Sync</p>
+              <p className="text-primary font-bold text-lg">
+                {formatTimeAgo(autoSyncConfig.lastSync || null)}
+              </p>
+            </div>
+            <div className="bg-gray-900 p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">Next Sync</p>
+              <p className="text-primary font-bold text-lg">
+                {formatNextSync(nextSyncTime)}
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            <div className="bg-gray-900 p-3 rounded-lg text-center">
+              <p className="text-gray-400 text-xs">Success Rate</p>
+              <p className="text-primary font-bold text-xl">{successRate}%</p>
+            </div>
+            <div className="bg-gray-900 p-3 rounded-lg text-center">
+              <p className="text-gray-400 text-xs">Successful</p>
+              <p className="text-primary font-bold text-xl">{successCount}</p>
+            </div>
+            <div className="bg-gray-900 p-3 rounded-lg text-center">
+              <p className="text-gray-400 text-xs">Failed</p>
+              <p className="text-danger font-bold text-xl">{errorCount}</p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-gray-400 text-sm mb-2">Active Categories:</p>
+            <div className="flex flex-wrap gap-2">
+              {autoSyncConfig.categories.map(cat => (
+                <span key={cat} className="px-3 py-1 bg-primary-dark text-primary rounded-full text-xs">
+                  {cat}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Trigger Now Button */}
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={triggerAutoSync}
+              disabled={!autoSyncConfig.enabled || isTriggering}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                !autoSyncConfig.enabled || isTriggering
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-primary text-black hover:bg-green-400 hover:shadow-lg hover:shadow-primary/50'
+              }`}
+            >
+              {isTriggering ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⟳</span>
+                  Triggering...
+                </>
+              ) : (
+                <>
+                  <span className="mr-2">▶</span>
+                  Trigger Sync Now
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="adguard-card">
+          <h3 className="font-semibold mb-4 text-primary">Filter Logs</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">Replica</label>
+              <select
+                value={filterReplica}
+                onChange={(e) => setFilterReplica(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary"
+              >
+                <option value="all">All Replicas</option>
+                {uniqueReplicas.map(replica => (
+                  <option key={replica} value={replica}>{replica}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">Category</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary"
+              >
+                <option value="all">All Categories</option>
+                {uniqueCategories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-400 text-sm mb-2">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'error')}
+                className="w-full px-3 py-2 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary"
+              >
+                <option value="all">All Statuses</option>
+                <option value="success">Success</option>
+                <option value="error">Error</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Sync History */}
+        <div className="adguard-card">
+          <h3 className="font-semibold mb-4 text-primary">
+            Sync History ({filteredAutoSyncLogs.length} entries)
+          </h3>
+          {filteredAutoSyncLogs.length === 0 ? (
+            <p className="text-gray-400 text-center py-8">No sync logs match the current filters.</p>
+          ) : (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              {filteredAutoSyncLogs.map((log, index) => (
+                <div
+                  key={index}
+                  className={`p-3 rounded-lg border ${
+                    log.status === 'success'
+                      ? 'bg-gray-900 border-primary-dark'
+                      : 'bg-danger-dark border-danger'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-xl ${log.status === 'success' ? 'text-primary' : 'text-danger'}`}>
+                        {log.status === 'success' ? '✓' : '✗'}
+                      </span>
+                      <div>
+                        <p className="text-primary font-semibold">
+                          {log.category} → {log.replicaId}
+                        </p>
+                        <p className="text-gray-400 text-sm">{log.message}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-400 text-xs">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </p>
+                      {log.duration && (
+                        <p className="text-gray-500 text-xs">
+                          {log.duration}ms
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-8 relative">
       {notification && (
@@ -403,20 +713,92 @@ export default function SyncStatusPage() {
       />
       <NavMenu />
       <h1 className="text-3xl font-extrabold mb-4 text-center dashboard-title">Sync Status</h1>
-      <div className="text-center text-gray-400 mb-8">
+      <div className="text-center text-gray-400 mb-6">
         Comparing all servers against master: <strong className="text-primary font-mono">{masterServerIp || 'Not Set'}</strong>
       </div>
 
-      {isLoading && <p className="text-center text-primary">Loading all server settings for comparison...</p>}
-      {error && <p className="text-center text-danger p-4 bg-danger-dark rounded-lg">{error}</p>}
+      {/* Tabs */}
+      <div className="flex justify-center gap-4 mb-8">
+        <button
+          onClick={() => setActiveTab('status')}
+          className={`px-6 py-3 rounded-lg font-bold transition-all ${
+            activeTab === 'status'
+              ? 'text-primary border-2 border-neon shadow-neon'
+              : 'text-gray-400 border-2 border-gray-600 hover:border-gray-500'
+          }`}
+        >
+          Manual Sync Status
+        </button>
+        <button
+          onClick={() => setActiveTab('auto-sync')}
+          className={`px-6 py-3 rounded-lg font-bold transition-all ${
+            activeTab === 'auto-sync'
+              ? 'text-primary border-2 border-neon shadow-neon'
+              : 'text-gray-400 border-2 border-gray-600 hover:border-gray-500'
+          }`}
+        >
+          Auto-Sync History
+          {autoSyncRunning && (
+            <span className="ml-2 inline-block w-2 h-2 bg-primary rounded-full animate-pulse"></span>
+          )}
+        </button>
+      </div>
 
-      {!isLoading && !error && (
-        <div className="space-y-8">
-            {Object.entries(replicaSettings).map(([ip, settings]) => (
-                <ComparisonCard key={ip} ip={ip} settings={settings} />
-            ))}
-        </div>
+      {/* Content based on active tab */}
+      {activeTab === 'status' && (
+        <>
+          {/* Warning banner when auto-sync is active */}
+          {autoSyncRunning && !autoSyncPaused && (
+            <div className="mb-6 p-4 bg-yellow-900/30 border-2 border-yellow-500 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-yellow-500 text-2xl">⚠️</span>
+                <div className="flex-1">
+                  <h3 className="text-yellow-500 font-semibold mb-1">Auto-Sync is Active - Manual Sync Disabled</h3>
+                  <p className="text-gray-300 text-sm">
+                    Manual synchronization is disabled while auto-sync is running to prevent conflicts. 
+                    To use manual sync, please pause or disable auto-sync in Settings first.
+                  </p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    Next auto-sync: {nextSyncTime ? formatNextSync(nextSyncTime) : 'Unknown'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info banner when auto-sync is paused */}
+          {autoSyncConfig?.enabled && autoSyncPaused && (
+            <div className="mb-6 p-4 bg-blue-900/30 border-2 border-blue-500 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-blue-500 text-2xl">ℹ️</span>
+                <div className="flex-1">
+                  <h3 className="text-blue-500 font-semibold mb-1">Auto-Sync is Paused - Manual Sync Available</h3>
+                  <p className="text-gray-300 text-sm">
+                    Auto-sync is currently paused. Manual synchronization is available. 
+                    You can resume auto-sync in Settings when ready.
+                  </p>
+                  <p className="text-gray-400 text-xs mt-2">
+                    Auto-sync will resume at the next scheduled interval ({autoSyncConfig.interval}) after you click Resume.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isLoading && <p className="text-center text-primary">Loading all server settings for comparison...</p>}
+          {error && <p className="text-center text-danger p-4 bg-danger-dark rounded-lg">{error}</p>}
+
+          {!isLoading && !error && (
+            <div className="space-y-8">
+                {Object.entries(replicaSettings).map(([ip, settings]) => (
+                    <ComparisonCard key={ip} ip={ip} settings={settings} />
+                ))}
+            </div>
+          )}
+        </>
       )}
+
+      {activeTab === 'auto-sync' && <AutoSyncHistoryView />}
     </div>
   );
 }
