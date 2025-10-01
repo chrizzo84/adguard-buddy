@@ -209,6 +209,10 @@ describe('Settings', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
+        json: () => Promise.resolve({ enabled: false, interval: '0 */6 * * *', isPaused: false }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({}),
       })
       .mockResolvedValueOnce({
@@ -265,7 +269,7 @@ describe('Settings', () => {
     });
 
     // Should not call save API when required fields are missing
-    expect(mockFetch).toHaveBeenCalledTimes(1); // Only the initial fetch
+    expect(mockFetch).toHaveBeenCalledTimes(2); // get-connections + auto-sync-config
   });
 
   it('switches theme', async () => {
@@ -444,7 +448,7 @@ describe('Settings', () => {
     });
 
     // Should not call save API
-    expect(mockFetch).toHaveBeenCalledTimes(1); // Only initial fetch
+    expect(mockFetch).toHaveBeenCalledTimes(2); // get-connections + auto-sync-config
   });
 
   it('handles URL-based connections', async () => {

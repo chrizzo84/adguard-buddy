@@ -142,9 +142,11 @@ export default function SyncStatusPage() {
   const fetchAutoSyncStatus = useCallback(async () => {
     try {
       const response = await fetch('/api/auto-sync-config');
-      if (!response.ok) return;
+      if (!response || !response.ok) return;
       
       const data = await response.json();
+      if (!data) return;
+      
       setAutoSyncConfig(data.config);
       setAutoSyncLogs(data.recentLogs || []);
       setAutoSyncRunning(data.isRunning);

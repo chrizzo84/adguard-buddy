@@ -58,17 +58,18 @@ export default function Settings() {
   const fetchAutoSyncConfig = useCallback(async () => {
     try {
       const response = await fetch('/api/auto-sync-config');
-      if (!response.ok) {
+      if (!response || !response.ok) {
         throw new Error('Failed to fetch auto-sync config.');
       }
       const data = await response.json();
       setAutoSyncConfig(data.config);
-      setLastSyncTime(data.config.lastSync || null);
+      setLastSyncTime(data.config?.lastSync || null);
       setNextSyncTime(data.nextSync || null);
       setIsPaused(data.isPaused || false);
     } catch (error) {
       const err = error as Error;
       console.error(`Error fetching auto-sync config: ${err.message}`);
+      // Keep default values if fetch fails
     }
   }, []);
 
@@ -462,7 +463,7 @@ export default function Settings() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={autoSyncConfig.enabled}
+              checked={autoSyncConfig?.enabled || false}
               onChange={(e) => handleAutoSyncUpdate({ enabled: e.target.checked })}
               className="w-5 h-5"
             />
@@ -470,7 +471,7 @@ export default function Settings() {
           </label>
         </div>
 
-        {autoSyncConfig.enabled && (
+        {autoSyncConfig?.enabled && (
           <div className="space-y-6">
             <div>
               <label className="block text-primary font-semibold mb-2">Sync Interval</label>
@@ -518,7 +519,7 @@ export default function Settings() {
             </div>
 
             {/* Pause/Resume Control */}
-            {autoSyncConfig.enabled && autoSyncConfig.interval !== 'disabled' && (
+            {autoSyncConfig?.enabled && autoSyncConfig.interval !== 'disabled' && (
               <div className="border-t border-gray-700 pt-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
@@ -564,7 +565,7 @@ export default function Settings() {
           </div>
         )}
 
-        {!autoSyncConfig.enabled && (
+        {!autoSyncConfig?.enabled && (
           <p className="text-gray-500 text-sm italic">
             Enable automatic sync to synchronize your master server settings to all replicas on a schedule.
           </p>
