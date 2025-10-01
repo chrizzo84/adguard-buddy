@@ -124,6 +124,9 @@ describe('SyncStatusPage', () => {
     const mockSettings = { filtering: { enabled: true } };
 
     mockFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
       if (url === '/api/get-connections') {
         return {
           ok: true,
@@ -180,6 +183,9 @@ describe('SyncStatusPage', () => {
     ];
 
     mockFetch.mockImplementation(async (url, options) => {
+        if (url === '/api/auto-sync-config') {
+          return mockAutoSyncConfigResponse();
+        }
         if (url === '/api/get-connections') {
             return {
                 ok: true,
@@ -217,6 +223,9 @@ describe('SyncStatusPage', () => {
     const mockSettings = { filtering: { enabled: true } };
 
     mockFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
       if (url === '/api/get-connections') {
         return {
           ok: true,
@@ -255,6 +264,9 @@ describe('SyncStatusPage', () => {
     const replicaSettings = { filtering: { enabled: false } };
 
     mockFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
       if (url === '/api/get-connections') {
         return {
           ok: true,
@@ -305,6 +317,9 @@ describe('SyncStatusPage', () => {
     };
 
     mockFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
       if (url === '/api/get-connections') {
         return {
           ok: true,
@@ -341,6 +356,9 @@ describe('SyncStatusPage', () => {
     const replicaSettings = { filtering: { enabled: false } };
 
     mockFetch.mockImplementation(async (url, options) => {
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
       if (url === '/api/get-connections') {
         return {
           ok: true,

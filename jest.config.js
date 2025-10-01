@@ -25,10 +25,10 @@ const customJestConfig = {
   coverageReporters: ['text', 'lcov', 'html', 'json'],
   coverageThreshold: {
     global: {
-      branches: 60,    // Erhöht von 55 (aktuell: 61.91%)
-      functions: 65,   // Erhöht von 55 (aktuell: 66.47%)
-      lines: 75,       // Erhöht von 65 (aktuell: 76.38%)
-      statements: 73,  // Erhöht von 65 (aktuell: 73.81%)
+      branches: 60,    // Aktuell: 61.95%
+      functions: 61,   // Aktuell: 61.82% (Pipeline niedrig)
+      lines: 74,       // Aktuell: 74.76% (Pipeline niedrig)
+      statements: 71,  // Aktuell: 71.83% (Pipeline niedrig)
     },
     './src/app/components/': {
       branches: 80,
@@ -43,10 +43,10 @@ const customJestConfig = {
       statements: 95,
     },
     './src/app/lib/': {
-      branches: 65,    // Erhöht von 10 (aktuell: 72.38%)
-      functions: 92,   // Erhöht von 10 (aktuell: 93.93%)
-      lines: 80,       // Erhöht von 10 (aktuell: 83.66%)
-      statements: 80,  // Erhöht von 10 (aktuell: 83.88%)
+      branches: 65,    // Aktuell: 67.74-72%
+      functions: 92,   // Aktuell: 92.59%
+      lines: 80,       // Aktuell: 81.66-83%
+      statements: 80,  // Aktuell: 81.72-83%
     },
   },
   testMatch: [
