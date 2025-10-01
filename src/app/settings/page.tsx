@@ -3,6 +3,7 @@ import NavMenu from "../components/NavMenu";
 import { useState, useEffect, useCallback } from "react";
 import CryptoJS from "crypto-js";
 import { useTheme } from "../contexts/ThemeContext";
+import { AutoSyncConfig, SyncInterval, SyncCategory } from "@/types/auto-sync";
 
 type Connection = {
   ip?: string;
@@ -29,6 +30,14 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false);
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
+  const [autoSyncConfig, setAutoSyncConfig] = useState<AutoSyncConfig>({
+    enabled: false,
+    interval: 'disabled',
+    categories: [],
+  });
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [nextSyncTime, setNextSyncTime] = useState<number | null>(null);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const fetchSettings = useCallback(async () => {
@@ -46,9 +55,31 @@ export default function Settings() {
     }
   }, []);
 
+  const fetchAutoSyncConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/auto-sync-config');
+      if (!response.ok) {
+        throw new Error('Failed to fetch auto-sync config.');
+      }
+      const data = await response.json();
+      setAutoSyncConfig(data.config);
+      setLastSyncTime(data.config.lastSync || null);
+      setNextSyncTime(data.nextSync || null);
+      setIsPaused(data.isPaused || false);
+    } catch (error) {
+      const err = error as Error;
+      console.error(`Error fetching auto-sync config: ${err.message}`);
+    }
+  }, []);
+
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchAutoSyncConfig();
+    
+    // Refresh auto-sync status every 30 seconds
+    const interval = setInterval(fetchAutoSyncConfig, 30000);
+    return () => clearInterval(interval);
+  }, [fetchSettings, fetchAutoSyncConfig]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -200,6 +231,100 @@ export default function Settings() {
     saveConnections(newConns);
   };
 
+  const handleAutoSyncUpdate = async (updates: Partial<AutoSyncConfig>) => {
+    try {
+      const response = await fetch('/api/auto-sync-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update auto-sync config');
+      }
+      
+      const data = await response.json();
+      setAutoSyncConfig(data.config);
+      showNotification('Auto-sync configuration updated successfully', 'success');
+      fetchAutoSyncConfig(); // Refresh to get latest status
+    } catch (error) {
+      const err = error as Error;
+      showNotification(`Error updating auto-sync config: ${err.message}`, 'error');
+    }
+  };
+
+  const toggleCategory = (category: SyncCategory) => {
+    const newCategories = autoSyncConfig.categories.includes(category)
+      ? autoSyncConfig.categories.filter(c => c !== category)
+      : [...autoSyncConfig.categories, category];
+    handleAutoSyncUpdate({ categories: newCategories });
+  };
+
+  const handlePauseResume = async () => {
+    try {
+      const action = isPaused ? 'resume' : 'pause';
+      const response = await fetch('/api/auto-sync-pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to ${action} auto-sync`);
+      }
+
+      const data = await response.json();
+      setIsPaused(data.paused);
+      showNotification(data.message, 'success');
+      fetchAutoSyncConfig(); // Refresh status
+    } catch (error) {
+      const err = error as Error;
+      showNotification(`Error: ${err.message}`, 'error');
+    }
+  };
+
+  const formatTime = (timestamp: number | null) => {
+    if (!timestamp) return 'Never';
+    const now = Date.now();
+    const diff = timestamp - now;
+    
+    if (diff < 0) {
+      const ago = Math.abs(diff);
+      const minutes = Math.floor(ago / 60000);
+      const hours = Math.floor(minutes / 60);
+      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+      if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+      return 'Just now';
+    } else {
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
+      if (minutes > 0) return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+      return 'Soon';
+    }
+  };
+
+  const intervalOptions: { value: SyncInterval; label: string }[] = [
+    { value: 'disabled', label: 'Disabled' },
+    { value: '5min', label: 'Every 5 minutes' },
+    { value: '15min', label: 'Every 15 minutes' },
+    { value: '30min', label: 'Every 30 minutes' },
+    { value: '1hour', label: 'Every hour' },
+    { value: '2hour', label: 'Every 2 hours' },
+    { value: '6hour', label: 'Every 6 hours' },
+    { value: '12hour', label: 'Every 12 hours' },
+    { value: '24hour', label: 'Every 24 hours' },
+  ];
+
+  const categoryOptions: { value: SyncCategory; label: string }[] = [
+    { value: 'filtering', label: 'Filtering (Blocklists & Rules)' },
+    { value: 'querylogConfig', label: 'Query Log Configuration' },
+    { value: 'statsConfig', label: 'Statistics Configuration' },
+    { value: 'rewrites', label: 'DNS Rewrites' },
+    { value: 'blockedServices', label: 'Blocked Services' },
+    { value: 'accessList', label: 'Access Lists' },
+  ];
+
   return (
     <div className="max-w-5xl mx-auto p-8 dashboard-bg rounded-xl shadow-xl relative">
       {notification && (
@@ -311,6 +436,139 @@ export default function Settings() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="mt-10 adguard-card">
+        <h2 className="font-semibold mb-4 card-title">Automatic Sync</h2>
+        
+        {/* Beta Warning */}
+        <div className="mb-4 p-3 bg-yellow-900/30 border-l-4 border-yellow-500 rounded">
+          <div className="flex items-start gap-2">
+            <span className="text-yellow-500 text-lg">⚠️</span>
+            <div className="flex-1">
+              <p className="text-yellow-500 font-semibold text-sm">BETA Feature</p>
+              <p className="text-gray-300 text-xs mt-1">
+                This is a new feature currently in beta testing. Please report any issues you encounter.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <p className="text-gray-400 text-sm mb-4">
+          Configure automatic synchronization of settings from the master server to all replica servers.
+        </p>
+        
+        <div className="mb-6 flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoSyncConfig.enabled}
+              onChange={(e) => handleAutoSyncUpdate({ enabled: e.target.checked })}
+              className="w-5 h-5"
+            />
+            <span className="text-primary font-semibold">Enable Automatic Sync</span>
+          </label>
+        </div>
+
+        {autoSyncConfig.enabled && (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-primary font-semibold mb-2">Sync Interval</label>
+              <select
+                value={autoSyncConfig.interval}
+                onChange={(e) => handleAutoSyncUpdate({ interval: e.target.value as SyncInterval })}
+                className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary"
+              >
+                {intervalOptions.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-primary font-semibold mb-2">Categories to Sync</label>
+              <div className="space-y-2">
+                {categoryOptions.map(option => (
+                  <label key={option.value} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800 p-2 rounded">
+                    <input
+                      type="checkbox"
+                      checked={autoSyncConfig.categories.includes(option.value)}
+                      onChange={() => toggleCategory(option.value)}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-primary">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-400">Last Sync:</span>
+                  <span className="ml-2 text-primary font-semibold">{formatTime(lastSyncTime)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400">Next Sync:</span>
+                  <span className="ml-2 text-primary font-semibold">
+                    {autoSyncConfig.interval === 'disabled' ? 'N/A' : formatTime(nextSyncTime)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pause/Resume Control */}
+            {autoSyncConfig.enabled && autoSyncConfig.interval !== 'disabled' && (
+              <div className="border-t border-gray-700 pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-primary font-semibold mb-1">Scheduler Control</p>
+                    <p className="text-gray-400 text-sm">
+                      {isPaused 
+                        ? 'Auto-sync is paused. Resume to continue scheduled syncs.'
+                        : 'Auto-sync is active. Pause to temporarily stop scheduled syncs.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePauseResume}
+                    className={`px-6 py-3 rounded-lg font-semibold transition-all ml-4 ${
+                      isPaused
+                        ? 'bg-primary text-black hover:bg-green-400 hover:shadow-lg hover:shadow-primary/50'
+                        : 'bg-yellow-600 text-white hover:bg-yellow-500 hover:shadow-lg'
+                    }`}
+                  >
+                    {isPaused ? (
+                      <>
+                        <span className="mr-2">▶</span>
+                        Resume
+                      </>
+                    ) : (
+                      <>
+                        <span className="mr-2">⏸</span>
+                        Pause
+                      </>
+                    )}
+                  </button>
+                </div>
+                
+                {isPaused && (
+                  <div className="mt-3 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+                    <p className="text-yellow-400 text-sm flex items-center">
+                      <span className="mr-2">⚠️</span>
+                      Scheduler is paused - no automatic syncs will occur until resumed
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!autoSyncConfig.enabled && (
+          <p className="text-gray-500 text-sm italic">
+            Enable automatic sync to synchronize your master server settings to all replicas on a schedule.
+          </p>
+        )}
       </div>
 
       <div className="mt-10 adguard-card">
