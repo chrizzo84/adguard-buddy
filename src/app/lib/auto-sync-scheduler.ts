@@ -171,7 +171,12 @@ class AutoSyncScheduler {
       logger.info('Passwords decrypted for auto-sync authentication');
 
       // Normalize connection id
-      const connId = (c: { url?: string; ip?: string }) => (c.url && c.url.length > 0) ? c.url.replace(/\/$/, '') : c.ip;
+      const connId = (c: { url?: string; ip?: string }) =>
+        (c.url && c.url.length > 0)
+          ? c.url.replace(/\/$/, '')
+          : (c.ip && c.ip.length > 0)
+            ? c.ip
+            : '';
       const replicaConns = decryptedConnections.filter((c: { url?: string; ip?: string }) => connId(c) !== masterServerIp);
 
       if (replicaConns.length === 0) {
