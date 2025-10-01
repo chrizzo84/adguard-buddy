@@ -162,6 +162,10 @@ export default function SyncStatusPage() {
       showNotification('Auto-sync is not enabled. Enable it in Settings first.', 'error');
       return;
     }
+    if (autoSyncPaused) {
+      showNotification('Auto-sync is currently paused. Please resume auto-sync before triggering.', 'error');
+      return;
+    }
 
     setIsTriggering(true);
     try {
