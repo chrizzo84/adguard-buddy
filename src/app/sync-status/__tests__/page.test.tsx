@@ -27,7 +27,18 @@ global.fetch = mockFetch;
 // Helper function to mock auto-sync config response
 const mockAutoSyncConfigResponse = () => ({
   ok: true,
-  json: () => Promise.resolve({ enabled: false, interval: '0 */6 * * *', isRunning: false, nextSync: null, lastSync: null, isPaused: false }),
+  json: () => Promise.resolve({ 
+    config: {
+      enabled: false, 
+      interval: '0 */6 * * *',
+      categories: [],
+      paused: false
+    },
+    isRunning: false, 
+    isPaused: false, 
+    nextSync: null, 
+    recentLogs: []
+  }),
 });
 
 // Mock scrollIntoView

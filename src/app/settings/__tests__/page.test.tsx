@@ -31,6 +31,23 @@ jest.mock('crypto-js', () => ({
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
+// Helper function to mock auto-sync config response
+const mockAutoSyncConfigResponse = () => ({
+  ok: true,
+  json: () => Promise.resolve({ 
+    config: { 
+      enabled: false, 
+      interval: '0 */6 * * *', 
+      categories: [],
+      paused: false 
+    },
+    isPaused: false,
+    isRunning: false,
+    nextSync: null,
+    recentLogs: []
+  }),
+});
+
 // Mock window.scrollTo
 Object.defineProperty(window, 'scrollTo', {
   writable: true,
@@ -41,6 +58,22 @@ describe('Settings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockClear();
+    
+    // Default: Mock both /api/get-connections and /api/auto-sync-config
+    // Tests can override this by calling mockFetch.mockImplementation or adding more mockResolvedValueOnce calls
+    mockFetch.mockImplementation((url) => {
+      if (url === '/api/get-connections') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ connections: [], masterServerIp: null }),
+        });
+      }
+      if (url === '/api/auto-sync-config') {
+        return Promise.resolve(mockAutoSyncConfigResponse());
+      }
+      // Return a rejected promise for unmocked URLs to make tests fail explicitly
+      return Promise.reject(new Error(`Unmocked fetch to: ${url}`));
+    });
   });
 
   it('renders the settings page with navigation', async () => {
