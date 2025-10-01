@@ -113,7 +113,7 @@ class AutoSyncScheduler {
       return bytes.toString(CryptoJS.enc.Utf8);
     } catch (error) {
       logger.error('Failed to decrypt password', error);
-      return encryptedPassword; // Return as-is if decryption fails
+      return ''; // Return empty string if decryption fails
     }
   }
 
