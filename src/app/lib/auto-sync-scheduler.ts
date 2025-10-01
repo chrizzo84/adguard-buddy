@@ -61,10 +61,14 @@ class AutoSyncScheduler {
     try {
       if (fs.existsSync(LOGS_FILE)) {
         const data = fs.readFileSync(LOGS_FILE, 'utf-8');
-        this.syncLogs = JSON.parse(data);
+        const parsed = JSON.parse(data);
+        // Ensure we always have an array
+        this.syncLogs = Array.isArray(parsed) ? parsed : [];
       }
     } catch (error) {
       logger.error(`Failed to load auto-sync logs: ${error}`);
+      // Ensure syncLogs is always an array
+      this.syncLogs = [];
     }
   }
 
@@ -400,3 +404,6 @@ export function getAutoSyncScheduler(): AutoSyncScheduler {
   }
   return schedulerInstance;
 }
+
+// Export class for testing
+export { AutoSyncScheduler };
