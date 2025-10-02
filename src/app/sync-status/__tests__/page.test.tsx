@@ -89,7 +89,7 @@ describe('SyncStatusPage', () => {
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ connections: mockConnections, masterServerIp: '192.168.1.1' }),
+      json: () => Promise.resolve({ connections: mockConnections, masterServerIp: '192.168.1.1:8080' }),
     });
 
     await act(async () => {
@@ -132,7 +132,7 @@ describe('SyncStatusPage', () => {
           ok: true,
           json: async () => ({
             connections: mockConnections,
-            masterServerIp: '192.168.1.1',
+            masterServerIp: '192.168.1.1:8080',
           }),
         };
       }
@@ -161,7 +161,7 @@ describe('SyncStatusPage', () => {
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ connections: mockConnections, masterServerIp: "192.168.1.1" }),
+      json: () => Promise.resolve({ connections: mockConnections, masterServerIp: '192.168.1.1:8080' }),
     });
 
     await act(async () => {
@@ -189,7 +189,7 @@ describe('SyncStatusPage', () => {
         if (url === '/api/get-connections') {
             return {
                 ok: true,
-                json: async () => ({ connections: mockConnections, masterServerIp: '192.168.1.1' }),
+                json: async () => ({ connections: mockConnections, masterServerIp: '192.168.1.1:8080' }),
             };
         }
         if (url === '/api/get-all-settings') {
@@ -231,7 +231,7 @@ describe('SyncStatusPage', () => {
           ok: true,
           json: async () => ({
             connections: mockConnections,
-            masterServerIp: '192.168.1.1',
+            masterServerIp: '192.168.1.1:8080',
           }),
         };
       }
@@ -249,7 +249,7 @@ describe('SyncStatusPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('192.168.1.1')).toBeInTheDocument();
+      expect(screen.getByText('192.168.1.1:8080')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Comparing all servers against master:')).toBeInTheDocument();
@@ -272,7 +272,7 @@ describe('SyncStatusPage', () => {
           ok: true,
           json: async () => ({
             connections: mockConnections,
-            masterServerIp: '192.168.1.1',
+            masterServerIp: '192.168.1.1:8080',
           }),
         };
       }
@@ -325,7 +325,7 @@ describe('SyncStatusPage', () => {
           ok: true,
           json: async () => ({
             connections: mockConnections,
-            masterServerIp: '192.168.1.1',
+            masterServerIp: '192.168.1.1:8080',
           }),
         };
       }
@@ -364,7 +364,7 @@ describe('SyncStatusPage', () => {
           ok: true,
           json: async () => ({
             connections: mockConnections,
-            masterServerIp: '192.168.1.1',
+            masterServerIp: '192.168.1.1:8080',
           }),
         };
       }
@@ -437,7 +437,7 @@ describe('SyncStatusPage', () => {
       ok: true,
       json: () => Promise.resolve({
         connections: mockConnections,
-        masterServerIp: '192.168.1.1'
+        masterServerIp: '192.168.1.1:8080'
       }),
     });
 

@@ -40,7 +40,7 @@ describe('AutoSyncScheduler', () => {
         allowInsecure: false,
       },
     ],
-    masterServerIp: '192.168.1.1',
+    masterServerIp: '192.168.1.1:3000', // Must include port to match normalized format
   };
 
   beforeEach(() => {

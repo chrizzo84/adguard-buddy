@@ -4,15 +4,7 @@ import path from 'path';
 import { AutoSyncConfig, SyncLogEntry, SyncInterval } from '@/types/auto-sync';
 import logger from '../api/logger';
 import CryptoJS from 'crypto-js';
-
-type Connection = {
-  ip?: string;
-  port?: number;
-  username: string;
-  password: string;
-  url?: string;
-  allowInsecure?: boolean;
-};
+import { getConnectionId, type Connection } from '@/lib/connectionUtils';
 
 const CONFIG_FILE = path.join(process.cwd(), 'auto-sync-config.json');
 const LOGS_FILE = path.join(process.cwd(), 'logs', 'auto-sync-logs.json');
@@ -170,14 +162,8 @@ class AutoSyncScheduler {
       
       logger.info('Passwords decrypted for auto-sync authentication');
 
-      // Normalize connection id
-      const connId = (c: { url?: string; ip?: string }) =>
-        (c.url && c.url.length > 0)
-          ? c.url.replace(/\/$/, '')
-          : (c.ip && c.ip.length > 0)
-            ? c.ip
-            : '';
-      const replicaConns = decryptedConnections.filter((c: { url?: string; ip?: string }) => connId(c) !== masterServerIp);
+      // Filter replica connections (exclude master)
+      const replicaConns = decryptedConnections.filter((c: Connection) => getConnectionId(c) !== masterServerIp);
 
       if (replicaConns.length === 0) {
         logger.info('No replica servers configured for auto-sync');
@@ -186,15 +172,17 @@ class AutoSyncScheduler {
 
       // Dynamically import the sync function
       const { performCategorySync } = await import('@/app/api/sync-category/sync-logic');
-      const masterConn = decryptedConnections.find((c: { url?: string; ip?: string }) => connId(c) === masterServerIp || c.ip === masterServerIp || (c.url && c.url.replace(/\/$/, '') === masterServerIp));
+      const masterConn = decryptedConnections.find((c: Connection) => getConnectionId(c) === masterServerIp);
 
       if (!masterConn) {
+        logger.error(`Master server connection not found. Looking for: ${masterServerIp}`);
+        logger.error(`Available connections: ${decryptedConnections.map((c: Connection) => getConnectionId(c)).join(', ')}`);
         throw new Error('Master server connection not found');
       }
 
       // Sync each category to each replica
       for (const replica of replicaConns) {
-        const replicaId = connId(replica) || '';
+        const replicaId = getConnectionId(replica) || '';
         
         for (const category of this.config.categories) {
           const categoryStartTime = Date.now();
