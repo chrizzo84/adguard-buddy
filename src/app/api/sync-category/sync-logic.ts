@@ -37,6 +37,14 @@ export async function performCategorySync(
         }
         
         const url = `${base}/control/${endpoint}`;
+        
+        // Check if password is empty (decryption might have failed)
+        if (!conn.password || conn.password.length === 0) {
+            log(`WARNING: Empty password for connection - authentication will fail!`);
+            log(`  Username: ${conn.username}`);
+            log(`  URL: ${url}`);
+        }
+        
         const headers = { ...(options.headers as Record<string,string> || {}), 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' } as Record<string,string>;
         const method = (options.method && (options.method === 'POST' || options.method === 'PUT')) ? String(options.method) : 'GET';
         const r = await httpRequest({ method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', url, headers, body: options.body as string || null, allowInsecure: conn.allowInsecure });

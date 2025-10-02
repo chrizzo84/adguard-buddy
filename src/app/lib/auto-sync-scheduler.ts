@@ -9,7 +9,8 @@ import { getConnectionId, type Connection } from '@/lib/connectionUtils';
 const CONFIG_FILE = path.join(process.cwd(), 'auto-sync-config.json');
 const LOGS_FILE = path.join(process.cwd(), 'logs', 'auto-sync-logs.json');
 const MAX_LOG_ENTRIES = 500;
-const ENCRYPTION_KEY = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
+// Server-side: Use both NEXT_PUBLIC_ and non-prefixed env vars for compatibility
+const ENCRYPTION_KEY = process.env.ADGUARD_BUDDY_ENCRYPTION_KEY || process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
 class AutoSyncScheduler {
   private task: ReturnType<typeof cron.schedule> | null = null;
@@ -147,7 +148,47 @@ class AutoSyncScheduler {
       logger.info(`Connections file read successfully, length: ${fileContent.length}`);
       
       const connectionsData = JSON.parse(fileContent);
-      const { connections, masterServerIp } = connectionsData;
+      const connections = connectionsData.connections;
+      let masterServerIp = connectionsData.masterServerIp;
+      
+      // IMPORTANT: Migrate masterServerIp to normalized format if needed
+      // This ensures consistency with the format used in settings/sync-status
+      if (masterServerIp && connections.length > 0) {
+        const masterExists = connections.some((conn: Connection) => getConnectionId(conn) === masterServerIp);
+        
+        if (!masterExists) {
+          logger.warn(`Master server ID "${masterServerIp}" doesn't match any connection - attempting migration`);
+          
+          // Try to find a matching connection by checking legacy formats
+          const matchedConn = connections.find((conn: Connection) => {
+            // Check if masterServerIp matches just the IP (old format)
+            if (conn.ip === masterServerIp) return true;
+            // Check if masterServerIp matches just the URL without normalization
+            if (conn.url === masterServerIp) return true;
+            // Check if it's an IP:port that matches
+            if (conn.ip && masterServerIp === `${conn.ip}:${conn.port || ''}`) return true;
+            return false;
+          });
+          
+          if (matchedConn) {
+            const oldMasterId = masterServerIp;
+            masterServerIp = getConnectionId(matchedConn);
+            logger.info(`Migrated master server ID from "${oldMasterId}" to "${masterServerIp}"`);
+            
+            // Save the migrated data back to file
+            try {
+              fs.writeFileSync(connectionsFile, JSON.stringify({
+                connections,
+                masterServerIp
+              }, null, 2));
+              logger.info('Successfully saved migrated connections data');
+            } catch (writeError) {
+              logger.error('Failed to save migrated data:', writeError);
+              // Continue anyway - use the migrated masterServerIp in memory
+            }
+          }
+        }
+      }
       
       logger.info(`Parsed connections: ${connections?.length || 0} servers, master: ${masterServerIp}`);
 
@@ -168,8 +209,10 @@ class AutoSyncScheduler {
         
         if (!decryptedPassword || decryptedPassword.length === 0) {
           logger.error(`Failed to decrypt password for connection: ${connId}`);
+          logger.error(`Encrypted password length: ${conn.password?.length || 0}`);
+          logger.error(`Encryption key being used: ${ENCRYPTION_KEY.substring(0, 5)}...`);
         } else {
-          logger.debug(`Successfully decrypted password for connection: ${connId}`);
+          logger.info(`Successfully decrypted password for connection: ${connId} (length: ${decryptedPassword.length})`);
         }
         
         return {
