@@ -15,6 +15,17 @@ type Connection = {
     allowInsecure?: boolean;
 };
 
+// Helper to normalize connection IDs consistently
+const getConnectionId = (conn: Connection): string => {
+    if (conn.url && conn.url.length > 0) {
+        return conn.url.replace(/\/$/, '');
+    }
+    if (conn.ip) {
+        return `${conn.ip}${conn.port ? ':' + conn.port : ''}`;
+    }
+    return '';
+};
+
 type FilterListItem = components['schemas']['Filter'];
 
 type SettingsValue =
@@ -205,9 +216,9 @@ export default function SyncStatusPage() {
     setLogModalTitle(`Syncing '${category}' to ${replicaIp}...`);
     setShowLogModal(true);
 
-    // Resolve connections by either ip or url (url stored without trailing slash)
-    const masterConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === masterServerIp) || c.ip === masterServerIp);
-    const replicaConn = connections.find(c => (c.url && c.url.replace(/\/$/, '') === replicaIp) || c.ip === replicaIp);
+    // Resolve connections using normalized IDs
+    const masterConn = connections.find(c => getConnectionId(c) === masterServerIp);
+    const replicaConn = connections.find(c => getConnectionId(c) === replicaIp);
 
     if (!masterConn || !replicaConn) {
         setSyncLogs(prev => [...prev, "Error: Master or replica connection not found."]);
@@ -291,10 +302,9 @@ export default function SyncStatusPage() {
         }
 
     const allConnections: Connection[] = config.connections;
-    // Normalize connection id: prefer URL (trimmed) else ip
-    const connId = (c: Connection) => (c.url && c.url.length > 0) ? c.url.replace(/\/$/, '') : c.ip;
-    const masterConn = allConnections.find(c => connId(c) === config.masterServerIp || c.ip === config.masterServerIp || (c.url && c.url.replace(/\/$/, '') === config.masterServerIp));
-    const replicaConns = allConnections.filter(c => connId(c) !== (config.masterServerIp || ''));
+    // Use consistent connection ID helper
+    const masterConn = allConnections.find(c => getConnectionId(c) === config.masterServerIp);
+    const replicaConns = allConnections.filter(c => getConnectionId(c) !== (config.masterServerIp || ''));
 
     setConnections(allConnections);
     setMasterServerIp(config.masterServerIp);
@@ -319,7 +329,7 @@ export default function SyncStatusPage() {
             return response.json();
         };
         const masterPromise = fetchSettingsFor(masterConn as Connection);
-    const replicaPromises = replicaConns.map(conn => fetchSettingsFor(conn).then(data => ({ id: connId(conn), settings: data.settings, errors: data.errors })));
+    const replicaPromises = replicaConns.map(conn => fetchSettingsFor(conn).then(data => ({ id: getConnectionId(conn), settings: data.settings, errors: data.errors })));
 
         const masterResult = await masterPromise;
         setMasterSettings(masterResult.settings);

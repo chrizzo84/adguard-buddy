@@ -170,13 +170,16 @@ class AutoSyncScheduler {
       
       logger.info('Passwords decrypted for auto-sync authentication');
 
-      // Normalize connection id
-      const connId = (c: { url?: string; ip?: string }) =>
-        (c.url && c.url.length > 0)
-          ? c.url.replace(/\/$/, '')
-          : (c.ip && c.ip.length > 0)
-            ? c.ip
-            : '';
+      // Normalize connection id - must match the format used in settings/sync-status pages
+      const connId = (c: { url?: string; ip?: string; port?: number }) => {
+        if (c.url && c.url.length > 0) {
+          return c.url.replace(/\/$/, '');
+        }
+        if (c.ip) {
+          return `${c.ip}${c.port ? ':' + c.port : ''}`;
+        }
+        return '';
+      };
       const replicaConns = decryptedConnections.filter((c: { url?: string; ip?: string }) => connId(c) !== masterServerIp);
 
       if (replicaConns.length === 0) {
@@ -186,9 +189,11 @@ class AutoSyncScheduler {
 
       // Dynamically import the sync function
       const { performCategorySync } = await import('@/app/api/sync-category/sync-logic');
-      const masterConn = decryptedConnections.find((c: { url?: string; ip?: string }) => connId(c) === masterServerIp || c.ip === masterServerIp || (c.url && c.url.replace(/\/$/, '') === masterServerIp));
+      const masterConn = decryptedConnections.find((c: { url?: string; ip?: string; port?: number }) => connId(c) === masterServerIp);
 
       if (!masterConn) {
+        logger.error(`Master server connection not found. Looking for: ${masterServerIp}`);
+        logger.error(`Available connections: ${decryptedConnections.map((c: Connection) => connId(c)).join(', ')}`);
         throw new Error('Master server connection not found');
       }
 
