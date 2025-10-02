@@ -99,22 +99,38 @@ class AutoSyncScheduler {
 
   /**
    * Decrypt password using CryptoJS
+   * Tries multiple encryption keys for backward compatibility
    */
   private decryptPassword(encryptedPassword: string): string {
-    try {
-      const bytes = CryptoJS.AES.decrypt(encryptedPassword, ENCRYPTION_KEY);
-      const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-      
-      if (!decrypted || decrypted.length === 0) {
-        logger.error('Password decryption resulted in empty string - possible wrong encryption key');
-        return '';
+    // Try keys in order of preference
+    const keysToTry = [
+      ENCRYPTION_KEY, // Current configured key
+      "adguard-buddy-key", // Default fallback key
+      process.env.ADGUARD_BUDDY_ENCRYPTION_KEY || '',
+      process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || ''
+    ].filter(key => key && key.length > 0); // Remove empty keys
+    
+    // Remove duplicates
+    const uniqueKeys = [...new Set(keysToTry)];
+    
+    for (const key of uniqueKeys) {
+      try {
+        const bytes = CryptoJS.AES.decrypt(encryptedPassword, key);
+        const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+        
+        if (decrypted && decrypted.length > 0) {
+          logger.info(`Successfully decrypted password with key: ${key === ENCRYPTION_KEY ? 'ENCRYPTION_KEY' : key === "adguard-buddy-key" ? 'default fallback' : 'alternative key'}`);
+          return decrypted;
+        }
+      } catch {
+        // Try next key
+        continue;
       }
-      
-      return decrypted;
-    } catch (error) {
-      logger.error('Failed to decrypt password', error);
-      return ''; // Return empty string if decryption fails
     }
+    
+    logger.error('Password decryption resulted in empty string - all encryption keys failed');
+    logger.error(`Tried ${uniqueKeys.length} different keys`);
+    return '';
   }
 
   private async performSync(): Promise<void> {

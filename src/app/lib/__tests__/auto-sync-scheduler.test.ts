@@ -520,7 +520,7 @@ describe('AutoSyncScheduler', () => {
       
       // The decryption error is caught and handled, sync continues
       await scheduler.triggerManualSync();
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Failed to decrypt password'), expect.any(Error));
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Password decryption resulted in empty string'));
     });
 
     it('should handle missing logs directory', async () => {
