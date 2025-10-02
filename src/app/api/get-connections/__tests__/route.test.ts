@@ -1,10 +1,19 @@
 import { GET } from '../route';
 
+// Mock logger
+jest.mock('../../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+}));
+
 // Mock fs and path
 jest.mock('fs', () => ({
   promises: {
     stat: jest.fn(),
     readFile: jest.fn(),
+    writeFile: jest.fn(),
   },
 }));
 jest.mock('path', () => ({

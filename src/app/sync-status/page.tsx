@@ -4,27 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import CryptoJS from "crypto-js";
 import { components } from "../../types/adguard";
 import { SyncLogEntry, AutoSyncConfig } from "@/types/auto-sync";
-
-// Types
-type Connection = {
-  ip: string;
-  port: number;
-  username: string;
-  password: string; // encrypted
-    url?: string;
-    allowInsecure?: boolean;
-};
-
-// Helper to normalize connection IDs consistently
-const getConnectionId = (conn: Connection): string => {
-    if (conn.url && conn.url.length > 0) {
-        return conn.url.replace(/\/$/, '');
-    }
-    if (conn.ip) {
-        return `${conn.ip}${conn.port ? ':' + conn.port : ''}`;
-    }
-    return '';
-};
+import { getConnectionId, type Connection } from "@/lib/connectionUtils";
 
 type FilterListItem = components['schemas']['Filter'];
 

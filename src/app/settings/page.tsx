@@ -4,15 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import CryptoJS from "crypto-js";
 import { useTheme } from "../contexts/ThemeContext";
 import { AutoSyncConfig, SyncInterval, SyncCategory } from "@/types/auto-sync";
-
-type Connection = {
-  ip?: string;
-  url?: string; // full URL including scheme (http/https)
-  port?: number;
-  username: string;
-  password: string; // encrypted
-  allowInsecure?: boolean;
-};
+import { getConnectionId, type Connection } from "@/lib/connectionUtils";
 
 type FormState = {
   target: string;
@@ -21,17 +13,6 @@ type FormState = {
   password: string;
   allowInsecure: boolean;
 }
-
-// Helper function to normalize connection identifiers consistently
-const getConnectionId = (conn: Connection): string => {
-  if (conn.url && conn.url.length > 0) {
-    return conn.url.replace(/\/$/, '');
-  }
-  if (conn.ip) {
-    return `${conn.ip}${conn.port ? ':' + conn.port : ''}`;
-  }
-  return '';
-};
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();

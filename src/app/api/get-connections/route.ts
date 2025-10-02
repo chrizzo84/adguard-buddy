@@ -2,28 +2,10 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { NextResponse } from 'next/server';
+import { getConnectionId, type Connection } from '@/lib/connectionUtils';
+import logger from '../logger';
 
 const dataFilePath = path.join(process.cwd(), '.data', 'connections.json');
-
-type Connection = {
-    ip?: string;
-    url?: string;
-    port?: number;
-    username: string;
-    password: string;
-    allowInsecure?: boolean;
-};
-
-// Helper to normalize connection IDs consistently
-const getConnectionId = (conn: Connection): string => {
-    if (conn.url && conn.url.length > 0) {
-        return conn.url.replace(/\/$/, '');
-    }
-    if (conn.ip) {
-        return `${conn.ip}${conn.port ? ':' + conn.port : ''}`;
-    }
-    return '';
-};
 
 // Migrate and normalize old data format
 const migrateConnectionsData = (data: { connections: Connection[], masterServerIp: string | null }) => {
@@ -48,7 +30,7 @@ const migrateConnectionsData = (data: { connections: Connection[], masterServerI
             if (matchedConn) {
                 // Update to normalized format
                 const normalizedMasterId = getConnectionId(matchedConn);
-                console.log(`Migrating master server ID from "${masterServerIp}" to "${normalizedMasterId}"`);
+                logger.info(`Migrating master server ID from "${masterServerIp}" to "${normalizedMasterId}"`);
                 return { connections, masterServerIp: normalizedMasterId, migrated: true };
             }
         }
@@ -85,9 +67,9 @@ export async function GET() {
                     connections: migratedData.connections,
                     masterServerIp: migratedData.masterServerIp
                 }, null, 2));
-                console.log('Successfully migrated and saved connections data');
+                logger.info('Successfully migrated and saved connections data');
             } catch (writeError) {
-                console.error('Failed to save migrated data:', writeError);
+                logger.error('Failed to save migrated data:', writeError);
                 // Continue anyway - return the migrated data even if save failed
             }
         }
