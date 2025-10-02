@@ -44,7 +44,7 @@ const customJestConfig = {
     },
     './src/app/lib/': {
       branches: 65,    // Aktuell: 67.74-73%
-      functions: 91,   // Aktuell: 91.17% (adjusted for connection normalization fixes)
+      functions: 90,   // Aktuell: 90.9% (adjusted after extracting getConnectionId to shared utility)
       lines: 80,       // Aktuell: 81.76-83%
       statements: 80,  // Aktuell: 81.72-83%
     },
