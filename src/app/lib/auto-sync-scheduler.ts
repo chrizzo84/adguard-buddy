@@ -203,6 +203,8 @@ class AutoSyncScheduler {
       }
 
       // Decrypt passwords for all connections
+      // IMPORTANT: We decrypt here using the same logic as the frontend
+      // to ensure consistency with manual sync
       const decryptedConnections = connections.map((conn: Connection) => {
         const decryptedPassword = this.decryptPassword(conn.password);
         const connId = getConnectionId(conn);
@@ -210,7 +212,7 @@ class AutoSyncScheduler {
         if (!decryptedPassword || decryptedPassword.length === 0) {
           logger.error(`Failed to decrypt password for connection: ${connId}`);
           logger.error(`Encrypted password length: ${conn.password?.length || 0}`);
-          logger.error(`Encryption key being used: ${ENCRYPTION_KEY.substring(0, 5)}...`);
+          logger.error(`Encryption key source: ${process.env.ADGUARD_BUDDY_ENCRYPTION_KEY ? 'ADGUARD_BUDDY_ENCRYPTION_KEY' : process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY ? 'NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY' : 'default fallback'}`);
         } else {
           logger.info(`Successfully decrypted password for connection: ${connId} (length: ${decryptedPassword.length})`);
         }
@@ -231,8 +233,7 @@ class AutoSyncScheduler {
         return;
       }
 
-      // Dynamically import the sync function
-      const { performCategorySync } = await import('@/app/api/sync-category/sync-logic');
+      // Find master connection
       const masterConn = decryptedConnections.find((c: Connection) => getConnectionId(c) === masterServerIp);
 
       if (!masterConn) {
@@ -240,6 +241,18 @@ class AutoSyncScheduler {
         logger.error(`Available connections: ${decryptedConnections.map((c: Connection) => getConnectionId(c)).join(', ')}`);
         throw new Error('Master server connection not found');
       }
+      
+      // Verify master connection has valid credentials
+      if (!masterConn.password || masterConn.password.length === 0) {
+        logger.error(`Master server connection has empty password after decryption!`);
+        logger.error(`This will cause 401 authentication errors.`);
+        throw new Error('Master server connection has invalid credentials');
+      }
+      
+      logger.info(`Master connection verified: ${getConnectionId(masterConn)}, username: ${masterConn.username}, password length: ${masterConn.password.length}`);
+
+      // Dynamically import the sync function
+      const { performCategorySync } = await import('@/app/api/sync-category/sync-logic');
 
       // Sync each category to each replica
       for (const replica of replicaConns) {
