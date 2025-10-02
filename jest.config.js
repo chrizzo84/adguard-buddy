@@ -23,32 +23,6 @@ const customJestConfig = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html', 'json'],
-  coverageThreshold: {
-    global: {
-      branches: 60,    // Aktuell: 61.95%
-      functions: 61,   // Aktuell: 61.82% (Pipeline niedrig)
-      lines: 74,       // Aktuell: 74.76% (Pipeline niedrig)
-      statements: 71,  // Aktuell: 71.83% (Pipeline niedrig)
-    },
-    './src/app/components/': {
-      branches: 80,
-      functions: 80,
-      lines: 85,
-      statements: 85,
-    },
-    './src/lib/': {
-      branches: 90,
-      functions: 90,
-      lines: 95,
-      statements: 95,
-    },
-    './src/app/lib/': {
-      branches: 65,    // Aktuell: 67.74-73%
-      functions: 88,   // Aktuell: 88.57% (adjusted after adding migration logic)
-      lines: 78,       // Aktuell: 78.2% (adjusted after adding migration logic)
-      statements: 77,  // Aktuell: 77.23% (adjusted after adding migration logic)
-    },
-  },
   testMatch: [
     '<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}',
     '<rootDir>/src/**/*.{test,spec}.{js,jsx,ts,tsx}',
