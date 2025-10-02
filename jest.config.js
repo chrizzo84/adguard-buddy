@@ -43,9 +43,9 @@ const customJestConfig = {
       statements: 95,
     },
     './src/app/lib/': {
-      branches: 65,    // Aktuell: 67.74-72%
-      functions: 91,   // Adjusted from 92 to 91 for new error logging
-      lines: 80,       // Aktuell: 81.66-83%
+      branches: 65,    // Aktuell: 67.74-73%
+      functions: 91,   // Aktuell: 91.17% (adjusted for connection normalization fixes)
+      lines: 80,       // Aktuell: 81.76-83%
       statements: 80,  // Aktuell: 81.72-83%
     },
   },

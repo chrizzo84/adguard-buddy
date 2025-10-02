@@ -1,6 +1,66 @@
 # ✨ What's New in AdGuard Buddy ✨
 
-**October 1, 2025**
+**October 2, 2025 - v0.1.20251002**
+
+## 🔧 CRITICAL FIX: Connection & Sync Issues After Container Upgrade
+
+**Important bug fixes!** This release resolves critical issues that occurred after container upgrades.
+
+### 🐛 Issues Fixed:
+
+**1. Master Server State Broken** ⭐
+- Fixed master server star icon not highlighting correctly
+- Resolved "lost" master server after container upgrade
+- Connection identification now consistent across all pages
+- **Impact**: Master server is now correctly identified and displayed
+
+**2. Connection Validation Problems** 🔌
+- Fixed existing connections not working after upgrade
+- Eliminated need to manually remove/re-add connections
+- Automatic migration of old connection data format
+- **Impact**: All existing connections work immediately after upgrade
+
+**3. Auto-Sync Master Server Lookup** 🔄
+- Fixed "Master server connection not found" error in auto-sync
+- Connection ID now includes port number for accurate matching
+- Improved error logging for better troubleshooting
+- **Impact**: Auto-sync now finds master server reliably
+
+### 🔧 Technical Details:
+
+**Connection ID Normalization:**
+- Implemented consistent `getConnectionId()` helper across all components
+- Format: `ip:port` (e.g., `192.168.1.1:80`) or `url` (e.g., `http://adguard.local`)
+- Applied uniformly in: Settings page, Sync Status page, Auto-Sync scheduler, API routes
+
+**Automatic Data Migration:**
+- `get-connections` API now auto-migrates old master server IDs
+- Detects legacy formats and converts to normalized format
+- Changes saved automatically on first load
+- Detailed logging for migration troubleshooting
+
+**Better Error Messages:**
+- Auto-sync now shows exactly what master server it's looking for
+- Lists all available connections when match fails
+- Makes debugging connection issues much easier
+
+### 📝 Files Modified:
+- `src/app/settings/page.tsx` - Master server selection logic
+- `src/app/sync-status/page.tsx` - Connection lookup consistency
+- `src/app/api/get-connections/route.ts` - Auto-migration functionality
+- `src/app/lib/auto-sync-scheduler.ts` - Fixed connection matching
+- Tests updated to match new normalized format
+
+### 🎯 What This Means For You:
+✅ Upgrade containers without connection issues  
+✅ Master server always correctly identified  
+✅ Auto-sync works reliably after upgrades  
+✅ No manual intervention needed - automatic migration  
+✅ Better error messages for troubleshooting  
+
+---
+
+**October 1, 2025 - v0.1.20251001**
 
 ## 🔄 AUTO-SYNC: Automatic Server Synchronization
 
