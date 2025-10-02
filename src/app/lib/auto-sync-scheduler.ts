@@ -102,7 +102,14 @@ class AutoSyncScheduler {
   private decryptPassword(encryptedPassword: string): string {
     try {
       const bytes = CryptoJS.AES.decrypt(encryptedPassword, ENCRYPTION_KEY);
-      return bytes.toString(CryptoJS.enc.Utf8);
+      const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+      
+      if (!decrypted || decrypted.length === 0) {
+        logger.error('Password decryption resulted in empty string - possible wrong encryption key');
+        return '';
+      }
+      
+      return decrypted;
     } catch (error) {
       logger.error('Failed to decrypt password', error);
       return ''; // Return empty string if decryption fails
@@ -155,12 +162,23 @@ class AutoSyncScheduler {
       }
 
       // Decrypt passwords for all connections
-      const decryptedConnections = connections.map((conn: Connection) => ({
-        ...conn,
-        password: this.decryptPassword(conn.password)
-      }));
+      const decryptedConnections = connections.map((conn: Connection) => {
+        const decryptedPassword = this.decryptPassword(conn.password);
+        const connId = getConnectionId(conn);
+        
+        if (!decryptedPassword || decryptedPassword.length === 0) {
+          logger.error(`Failed to decrypt password for connection: ${connId}`);
+        } else {
+          logger.debug(`Successfully decrypted password for connection: ${connId}`);
+        }
+        
+        return {
+          ...conn,
+          password: decryptedPassword
+        };
+      });
       
-      logger.info('Passwords decrypted for auto-sync authentication');
+      logger.info('Password decryption completed for all connections');
 
       // Filter replica connections (exclude master)
       const replicaConns = decryptedConnections.filter((c: Connection) => getConnectionId(c) !== masterServerIp);

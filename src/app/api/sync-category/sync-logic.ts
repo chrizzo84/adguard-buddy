@@ -1,5 +1,6 @@
 import { components } from "../../../types/adguard";
 import { httpRequest } from '../../lib/httpRequest';
+import { getConnectionDisplayName, type Connection } from '@/lib/connectionUtils';
 
 type Filter = {
     url: string;
@@ -7,14 +8,8 @@ type Filter = {
     enabled: boolean;
 };
 
-type ConnectionDetails = {
-  ip: string;
-  port: number;
-  username: string;
-  password: string;
-  url?: string;
-  allowInsecure?: boolean;
-};
+// ConnectionDetails is compatible with Connection type from connectionUtils
+type ConnectionDetails = Connection;
 
 /**
  * Performs a category sync between a source (master) and destination (replica) connection.
@@ -26,8 +21,21 @@ export async function performCategorySync(
     category: string,
     log: (message: string) => void
 ): Promise<void> {
+    // Helper to get display names for logging
+    const sourceName = getConnectionDisplayName(sourceConnection);
+    const destName = getConnectionDisplayName(destinationConnection);
+    
     const fetchApi = async (conn: ConnectionDetails & { url?: string; allowInsecure?: boolean }, endpoint: string, options: RequestInit = {}) => {
-        const base = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `http://${conn.ip}:${conn.port}`;
+        // Build base URL - prefer explicit URL over IP:port
+        let base: string;
+        if (conn.url && conn.url.length > 0) {
+            base = conn.url.replace(/\/$/, '');
+        } else if (conn.ip) {
+            base = `http://${conn.ip}${conn.port ? ':' + conn.port : ''}`;
+        } else {
+            throw new Error('Connection must have either url or ip specified');
+        }
+        
         const url = `${base}/control/${endpoint}`;
         const headers = { ...(options.headers as Record<string,string> || {}), 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' } as Record<string,string>;
         const method = (options.method && (options.method === 'POST' || options.method === 'PUT')) ? String(options.method) : 'GET';
@@ -38,15 +46,15 @@ export async function performCategorySync(
     log(`Starting sync for category: ${category}`);
 
     if (category === 'filtering') {
-        log(`-> Fetching filtering status from master: ${sourceConnection.ip}`);
+        log(`-> Fetching filtering status from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'filtering/status');
-        if (!masterRes.ok) throw new Error(`Failed to fetch filtering status from master ${sourceConnection.ip}: ${masterRes.status}`);
+        if (!masterRes.ok) throw new Error(`Failed to fetch filtering status from master ${sourceName}: ${masterRes.status}`);
         const masterSettings = await masterRes.json();
         log(`<- Successfully fetched settings from master.`);
 
-        log(`-> Fetching filtering status from replica: ${destinationConnection.ip}`);
+        log(`-> Fetching filtering status from replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'filtering/status');
-        if (!replicaRes.ok) throw new Error(`Failed to fetch filtering status from replica ${destinationConnection.ip}: ${replicaRes.status}`);
+        if (!replicaRes.ok) throw new Error(`Failed to fetch filtering status from replica ${destName}: ${replicaRes.status}`);
         const replicaSettings = await replicaRes.json();
         log(`<- Successfully fetched settings from replica.`);
 
@@ -58,7 +66,7 @@ export async function performCategorySync(
         });
         if(!configRes.ok) {
             const errorText = await configRes.text();
-            throw new Error(`Failed to sync basic filtering config to replica ${destinationConnection.ip}: ${configRes.status} ${errorText}`);
+            throw new Error(`Failed to sync basic filtering config to replica ${destName}: ${configRes.status} ${errorText}`);
         }
         log("<- Basic config synced.");
 
@@ -70,7 +78,7 @@ export async function performCategorySync(
         });
         if(!rulesRes.ok) {
             const errorText = await rulesRes.text();
-            throw new Error(`Failed to sync user rules to replica ${destinationConnection.ip}: ${rulesRes.status} ${errorText}`);
+            throw new Error(`Failed to sync user rules to replica ${destName}: ${rulesRes.status} ${errorText}`);
         }
         log("<- User rules synced.");
 
@@ -93,7 +101,7 @@ export async function performCategorySync(
                     if (!removeRes.ok) {
                         const errorText = await removeRes.text();
                         log(`   - FAILED to remove filter ${filter.url}: ${removeRes.status} ${errorText}`);
-                        throw new Error(`Failed to remove filter ${filter.url} from replica ${destinationConnection.ip}`);
+                        throw new Error(`Failed to remove filter ${filter.url} from replica ${destName}`);
                     }
                     log(`   - Removed successfully.`);
                 }
@@ -114,7 +122,7 @@ export async function performCategorySync(
                     if (!addRes.ok) {
                         const errorText = await addRes.text();
                         log(`   + FAILED to add filter ${masterFilter.url}: ${addRes.status} ${errorText}`);
-                        throw new Error(`Failed to add filter ${masterFilter.url} to replica ${destinationConnection.ip}`);
+                        throw new Error(`Failed to add filter ${masterFilter.url} to replica ${destName}`);
                     }
                     log(`   + Added successfully.`);
                 } else {
@@ -133,7 +141,7 @@ export async function performCategorySync(
                         if (!updateRes.ok) {
                             const errorText = await updateRes.text();
                             log(`   * FAILED to update filter ${masterFilter.url}: ${updateRes.status} ${errorText}`);
-                            throw new Error(`Failed to update filter ${masterFilter.url} on replica ${destinationConnection.ip}`);
+                            throw new Error(`Failed to update filter ${masterFilter.url} on replica ${destName}`);
                         }
                         log(`   * Updated successfully.`);
                     }
@@ -149,13 +157,13 @@ export async function performCategorySync(
         const getConfigEndpoint = category === 'querylogConfig' ? 'querylog/config' : 'stats/config';
         const setConfigEndpoint = category === 'querylogConfig' ? 'querylog/config/update' : 'stats/config/update';
 
-        log(`-> Fetching ${category} from master: ${sourceConnection.ip}`);
+        log(`-> Fetching ${category} from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, getConfigEndpoint);
-        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceConnection.ip}`);
+        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceName}`);
         const masterConfig = await masterRes.json();
         log(`<- Fetched ${category} successfully.`);
 
-        log(`-> Pushing ${category} to replica: ${destinationConnection.ip}`);
+        log(`-> Pushing ${category} to replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, setConfigEndpoint, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -164,17 +172,17 @@ export async function performCategorySync(
 
         if (!replicaRes.ok) {
             const errorText = await replicaRes.text();
-            throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
+            throw new Error(`Failed to push ${category} to replica ${destName}: ${replicaRes.status} ${errorText}`);
         }
         log(`<- ${category} synced successfully.`);
     } else if (category === 'accessList') {
-        log(`-> Fetching ${category} from master: ${sourceConnection.ip}`);
+        log(`-> Fetching ${category} from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'access/list');
-        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceConnection.ip}`);
+        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceName}`);
         const masterConfig = await masterRes.json();
         log(`<- Fetched ${category} successfully.`);
 
-        log(`-> Pushing ${category} to replica: ${destinationConnection.ip}`);
+        log(`-> Pushing ${category} to replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'access/set', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -183,17 +191,17 @@ export async function performCategorySync(
 
         if (!replicaRes.ok) {
             const errorText = await replicaRes.text();
-            throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
+            throw new Error(`Failed to push ${category} to replica ${destName}: ${replicaRes.status} ${errorText}`);
         }
         log(`<- ${category} synced successfully.`);
     } else if (category === 'blockedServices') {
-        log(`-> Fetching ${category} from master: ${sourceConnection.ip}`);
+        log(`-> Fetching ${category} from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'blocked_services/get');
-        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceConnection.ip}`);
+        if (!masterRes.ok) throw new Error(`Failed to fetch ${category} from master ${sourceName}`);
         const masterConfig = await masterRes.json();
         log(`<- Fetched ${category} successfully.`);
 
-        log(`-> Pushing ${category} to replica: ${destinationConnection.ip}`);
+        log(`-> Pushing ${category} to replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'blocked_services/update', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -202,19 +210,19 @@ export async function performCategorySync(
 
         if (!replicaRes.ok) {
             const errorText = await replicaRes.text();
-            throw new Error(`Failed to push ${category} to replica ${destinationConnection.ip}: ${replicaRes.status} ${errorText}`);
+            throw new Error(`Failed to push ${category} to replica ${destName}: ${replicaRes.status} ${errorText}`);
         }
         log(`<- ${category} synced successfully.`);
     } else if (category === 'rewrites') {
-        log(`-> Fetching rewrites from master: ${sourceConnection.ip}`);
+        log(`-> Fetching rewrites from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'rewrite/list');
-        if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceConnection.ip}`);
+        if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceName}`);
         const masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
         log(`<- Fetched rewrites successfully.`);
 
-        log(`-> Fetching rewrites from replica: ${destinationConnection.ip}`);
+        log(`-> Fetching rewrites from replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'rewrite/list');
-        if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destinationConnection.ip}`);
+        if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destName}`);
         const replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
         log(`<- Fetched rewrites successfully.`);
 
@@ -232,7 +240,7 @@ export async function performCategorySync(
                 if (!deleteRes.ok) {
                     const errorText = await deleteRes.text();
                     log(`   - FAILED to remove rewrite ${rewrite.domain}: ${deleteRes.status} ${errorText}`);
-                    throw new Error(`Failed to remove rewrite ${rewrite.domain} from replica ${destinationConnection.ip}`);
+                    throw new Error(`Failed to remove rewrite ${rewrite.domain} from replica ${destName}`);
                 }
                 log(`   - Removed successfully.`);
             }
@@ -249,7 +257,7 @@ export async function performCategorySync(
                 if (!addRes.ok) {
                     const errorText = await addRes.text();
                     log(`   + FAILED to add rewrite ${masterRewrite.domain}: ${addRes.status} ${errorText}`);
-                    throw new Error(`Failed to add rewrite ${masterRewrite.domain} to replica ${destinationConnection.ip}`);
+                    throw new Error(`Failed to add rewrite ${masterRewrite.domain} to replica ${destName}`);
                 }
                 log(`   + Added successfully.`);
             }
