@@ -40,14 +40,6 @@ The AdGuard Home API endpoint `/control/filtering/set_rules` **replaces** the en
 - `src/app/api/set-filtering-rule/route.ts` - Complete rewrite of rule management logic
 - `docs/Custom-Filter-Rules.md` - New documentation explaining the implementation
 
-### 📚 Documentation:
-
-Detailed technical documentation has been added to `docs/Custom-Filter-Rules.md` explaining:
-- The root cause of the issue
-- Implementation details of the fix
-- Future considerations for per-client rule support
-- Testing recommendations
-
 ---
 
 **October 2, 2025 - v0.1.20251002**
