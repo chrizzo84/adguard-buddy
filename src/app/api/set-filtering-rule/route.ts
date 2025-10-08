@@ -64,14 +64,72 @@ export async function POST(request: Request) {
 
                     sendEvent({ message: `Processing server: ${conn.ip}` });
 
-                        const base = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `http://${conn.ip}:${conn.port}`;
-                        const url = `${base}/control/filtering/set_rules`;
-                        const headers: Record<string,string> = {
-                            'Content-Type': 'application/json',
-                        };
-                        if (conn.username) headers['Authorization'] = 'Basic ' + Buffer.from(`${conn.username}:${decryptedPassword}`).toString('base64');
-                        const r = await httpRequest({ method: 'POST', url, headers, body: JSON.stringify({ rules: [rule] }), allowInsecure: conn.allowInsecure });
-                        const response = { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, statusText: r.statusCode === 500 ? 'Internal Server Error' : '', text: async () => r.body, json: async () => JSON.parse(r.body || '{}') } as Response;
+                    const base = conn.url && conn.url.length > 0 ? conn.url.replace(/\/$/, '') : `http://${conn.ip}:${conn.port}`;
+                    const headers: Record<string,string> = {
+                        'Content-Type': 'application/json',
+                    };
+                    if (conn.username) headers['Authorization'] = 'Basic ' + Buffer.from(`${conn.username}:${decryptedPassword}`).toString('base64');
+
+                    // Step 1: Fetch existing rules to avoid overwriting them
+                    sendEvent({ message: `Fetching existing rules from ${conn.ip}...` });
+                    const statusUrl = `${base}/control/filtering/status`;
+                    const statusResp = await httpRequest({ method: 'GET', url: statusUrl, headers, allowInsecure: conn.allowInsecure });
+                    
+                    if (statusResp.statusCode < 200 || statusResp.statusCode >= 300) {
+                        throw new Error(`Failed to fetch filtering status: ${statusResp.statusCode}`);
+                    }
+
+                    const filteringStatus = JSON.parse(statusResp.body || '{}');
+                    const existingRules: string[] = filteringStatus.user_rules || [];
+                    
+                    sendEvent({ message: `Found ${existingRules.length} existing custom rule(s)` });
+
+                    // Step 2: Check if rule already exists (avoid duplicates)
+                    const ruleExists = existingRules.includes(rule);
+                    
+                    let updatedRules: string[];
+                    if (action === 'block') {
+                        // For block action: add the block rule if it doesn't exist
+                        if (ruleExists) {
+                            sendEvent({ message: `Rule already exists, skipping...` });
+                            updatedRules = existingRules;
+                        } else {
+                            // Remove any unblock rule for this domain before adding block rule
+                            const unblockRule = `@@||${domain}^`;
+                            updatedRules = existingRules.filter(r => r !== unblockRule);
+                            updatedRules.push(rule);
+                            sendEvent({ message: `Adding block rule...` });
+                        }
+                    } else {
+                        // For unblock action: add the unblock rule if it doesn't exist
+                        if (ruleExists) {
+                            sendEvent({ message: `Unblock rule already exists, skipping...` });
+                            updatedRules = existingRules;
+                        } else {
+                            // Remove any block rule for this domain before adding unblock rule
+                            const blockRule = `||${domain}^`;
+                            updatedRules = existingRules.filter(r => r !== blockRule);
+                            updatedRules.push(rule);
+                            sendEvent({ message: `Adding unblock rule...` });
+                        }
+                    }
+
+                    // Step 3: Set the updated rules (including existing ones)
+                    const setRulesUrl = `${base}/control/filtering/set_rules`;
+                    const r = await httpRequest({ 
+                        method: 'POST', 
+                        url: setRulesUrl, 
+                        headers, 
+                        body: JSON.stringify({ rules: updatedRules }), 
+                        allowInsecure: conn.allowInsecure 
+                    });
+                    const response = { 
+                        ok: r.statusCode >= 200 && r.statusCode < 300, 
+                        status: r.statusCode, 
+                        statusText: r.statusCode === 500 ? 'Internal Server Error' : '', 
+                        text: async () => r.body, 
+                        json: async () => JSON.parse(r.body || '{}') 
+                    } as Response;
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({ message: response.statusText }));

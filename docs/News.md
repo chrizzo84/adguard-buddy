@@ -1,5 +1,55 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**October 8, 2025 - v0.1.20251008**
+
+## 🔧 CRITICAL FIX: Custom Filter Rules Overwriting
+
+**Important bug fix!** This release resolves a critical issue where using the unblock/block function in the query log would overwrite all existing custom filter rules.
+
+### 🐛 Issue Fixed:
+
+**Custom Filter Rules Being Overwritten** ⚠️
+- Fixed query log unblock/block function deleting all existing custom rules
+- Rules are now properly preserved when adding new block/unblock rules
+- Manual sync and auto-sync continue to work correctly
+- **Impact**: All custom filter rules are now safe when using quick block/unblock actions
+
+### 🎯 Root Cause:
+
+The AdGuard Home API endpoint `/control/filtering/set_rules` **replaces** the entire custom rules list rather than appending to it. The previous implementation was sending only the new rule, which caused all existing rules to be deleted.
+
+### ✨ Solution Implemented:
+
+**Three-Step Process:**
+1. **Fetch existing rules** - Retrieves current custom rules from the server before making changes
+2. **Intelligent merge** - Combines new rule with existing rules:
+   - Prevents duplicate rules
+   - Removes conflicting rules (e.g., removes block rule when adding unblock for same domain)
+   - Preserves all other existing rules, including comments
+3. **Update complete list** - Sends back the full set of rules to AdGuard Home
+
+### 📋 Features:
+
+- ✅ **No Data Loss** - All existing custom rules are preserved
+- ✅ **Smart Conflict Resolution** - Block and unblock rules for the same domain don't coexist
+- ✅ **Duplicate Prevention** - Won't add the same rule twice
+- ✅ **Sync-Safe** - Manual and auto-sync continue to work correctly
+- ✅ **Better Feedback** - Shows detailed progress during rule updates
+
+### 📝 Files Modified:
+- `src/app/api/set-filtering-rule/route.ts` - Complete rewrite of rule management logic
+- `docs/Custom-Filter-Rules.md` - New documentation explaining the implementation
+
+### 📚 Documentation:
+
+Detailed technical documentation has been added to `docs/Custom-Filter-Rules.md` explaining:
+- The root cause of the issue
+- Implementation details of the fix
+- Future considerations for per-client rule support
+- Testing recommendations
+
+---
+
 **October 2, 2025 - v0.1.20251002**
 
 ## 🔧 CRITICAL FIX: Connection & Sync Issues After Container Upgrade
