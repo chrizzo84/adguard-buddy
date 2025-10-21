@@ -271,6 +271,107 @@ export async function performCategorySync(
             }
         }
         log(`<- Rewrites sync completed.`);
+    } else if (category === 'dnsSettings') {
+        log(`-> Fetching DNS settings from master: ${sourceName}`);
+        const masterRes = await fetchApi(sourceConnection, 'dns_info');
+        if (!masterRes.ok) throw new Error(`Failed to fetch DNS settings from master ${sourceName}`);
+        const masterDnsSettings = await masterRes.json();
+        log(`<- Fetched DNS settings successfully.`);
+
+        log(`-> Fetching DNS settings from replica: ${destName}`);
+        const replicaRes = await fetchApi(destinationConnection, 'dns_info');
+        if (!replicaRes.ok) throw new Error(`Failed to fetch DNS settings from replica ${destName}`);
+        const replicaDnsSettings = await replicaRes.json();
+        log(`<- Fetched replica DNS settings successfully.`);
+
+        // Extract the DNS settings that should be synced
+        const dnsSettingsToSync = {
+            upstream_dns: masterDnsSettings.upstream_dns,
+            fallback_dns: masterDnsSettings.fallback_dns,
+            bootstrap_dns: masterDnsSettings.bootstrap_dns,
+            upstream_mode: masterDnsSettings.upstream_mode,
+            upstream_timeout: masterDnsSettings.upstream_timeout,
+            cache_size: masterDnsSettings.cache_size,
+            cache_ttl_min: masterDnsSettings.cache_ttl_min,
+            cache_ttl_max: masterDnsSettings.cache_ttl_max,
+            cache_enabled: masterDnsSettings.cache_enabled,
+            cache_optimistic: masterDnsSettings.cache_optimistic,
+            blocking_mode: masterDnsSettings.blocking_mode,
+            blocking_ipv4: masterDnsSettings.blocking_ipv4,
+            blocking_ipv6: masterDnsSettings.blocking_ipv6,
+            blocked_response_ttl: masterDnsSettings.blocked_response_ttl,
+            dnssec_enabled: masterDnsSettings.dnssec_enabled,
+            disable_ipv6: masterDnsSettings.disable_ipv6,
+            edns_cs_enabled: masterDnsSettings.edns_cs_enabled,
+            edns_cs_use_custom: masterDnsSettings.edns_cs_use_custom,
+            edns_cs_custom_ip: masterDnsSettings.edns_cs_custom_ip,
+            ratelimit: masterDnsSettings.ratelimit,
+            ratelimit_subnet_subnet_len_ipv4: masterDnsSettings.ratelimit_subnet_subnet_len_ipv4,
+            ratelimit_subnet_subnet_len_ipv6: masterDnsSettings.ratelimit_subnet_subnet_len_ipv6,
+            ratelimit_whitelist: masterDnsSettings.ratelimit_whitelist,
+            local_ptr_upstreams: masterDnsSettings.local_ptr_upstreams,
+            use_private_ptr_resolvers: masterDnsSettings.use_private_ptr_resolvers,
+            resolve_clients: masterDnsSettings.resolve_clients,
+        };
+
+        // Check if settings are different
+        const replicaDnsSettingsToCompare = {
+            upstream_dns: replicaDnsSettings.upstream_dns,
+            fallback_dns: replicaDnsSettings.fallback_dns,
+            bootstrap_dns: replicaDnsSettings.bootstrap_dns,
+            upstream_mode: replicaDnsSettings.upstream_mode,
+            upstream_timeout: replicaDnsSettings.upstream_timeout,
+            cache_size: replicaDnsSettings.cache_size,
+            cache_ttl_min: replicaDnsSettings.cache_ttl_min,
+            cache_ttl_max: replicaDnsSettings.cache_ttl_max,
+            cache_enabled: replicaDnsSettings.cache_enabled,
+            cache_optimistic: replicaDnsSettings.cache_optimistic,
+            blocking_mode: replicaDnsSettings.blocking_mode,
+            blocking_ipv4: replicaDnsSettings.blocking_ipv4,
+            blocking_ipv6: replicaDnsSettings.blocking_ipv6,
+            blocked_response_ttl: replicaDnsSettings.blocked_response_ttl,
+            dnssec_enabled: replicaDnsSettings.dnssec_enabled,
+            disable_ipv6: replicaDnsSettings.disable_ipv6,
+            edns_cs_enabled: replicaDnsSettings.edns_cs_enabled,
+            edns_cs_use_custom: replicaDnsSettings.edns_cs_use_custom,
+            edns_cs_custom_ip: replicaDnsSettings.edns_cs_custom_ip,
+            ratelimit: replicaDnsSettings.ratelimit,
+            ratelimit_subnet_subnet_len_ipv4: replicaDnsSettings.ratelimit_subnet_subnet_len_ipv4,
+            ratelimit_subnet_subnet_len_ipv6: replicaDnsSettings.ratelimit_subnet_subnet_len_ipv6,
+            ratelimit_whitelist: replicaDnsSettings.ratelimit_whitelist,
+            local_ptr_upstreams: replicaDnsSettings.local_ptr_upstreams,
+            use_private_ptr_resolvers: replicaDnsSettings.use_private_ptr_resolvers,
+            resolve_clients: replicaDnsSettings.resolve_clients,
+        };
+
+        const settingsMatch = JSON.stringify(dnsSettingsToSync) === JSON.stringify(replicaDnsSettingsToCompare);
+
+        if (settingsMatch) {
+            log(`-> DNS settings are already in sync, no changes needed.`);
+        } else {
+            log(`-> DNS settings differ, syncing to replica: ${destName}`);
+            
+            // Log specific differences for debugging
+            for (const key in dnsSettingsToSync) {
+                const masterValue = (dnsSettingsToSync as Record<string, unknown>)[key];
+                const replicaValue = (replicaDnsSettingsToCompare as Record<string, unknown>)[key];
+                if (JSON.stringify(masterValue) !== JSON.stringify(replicaValue)) {
+                    log(`   - ${key}: master=[${masterValue}] replica=[${replicaValue}]`);
+                }
+            }
+
+            const pushRes = await fetchApi(destinationConnection, 'dns_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dnsSettingsToSync),
+            });
+
+            if (!pushRes.ok) {
+                const errorText = await pushRes.text();
+                throw new Error(`Failed to push DNS settings to replica ${destName}: ${pushRes.status} ${errorText}`);
+            }
+            log(`<- DNS settings synced successfully.`);
+        }
     } else {
         throw new Error(`Sync for category '${category}' is not yet implemented.`);
     }

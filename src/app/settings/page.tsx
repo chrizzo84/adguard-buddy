@@ -321,6 +321,7 @@ export default function Settings() {
     { value: 'filtering', label: 'Filtering (Blocklists & Rules)' },
     { value: 'querylogConfig', label: 'Query Log Configuration' },
     { value: 'statsConfig', label: 'Statistics Configuration' },
+    { value: 'dnsSettings', label: 'DNS Settings' },
     { value: 'rewrites', label: 'DNS Rewrites' },
     { value: 'blockedServices', label: 'Blocked Services' },
     { value: 'accessList', label: 'Access Lists' },

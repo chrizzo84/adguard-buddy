@@ -83,7 +83,7 @@ const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
 
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
-    const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'rules_count'];
+    const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'rules_count', 'default_local_ptr_upstreams'];
 
     for (const key of keysA) {
         if (IGNORED_COMPARISON_KEYS.includes(key)) continue;
@@ -355,7 +355,7 @@ export default function SyncStatusPage() {
 
     if (!masterSettings) return null;
 
-    const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'rewrites', 'blockedServices', 'accessList'];
+    const SYNCABLE_KEYS = ['filtering', 'querylogConfig', 'statsConfig', 'dnsSettings', 'rewrites', 'blockedServices', 'accessList'];
 
     if (!settings || (!settings.settings && settings.errors)) {
         // Show error state

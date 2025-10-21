@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const endpoints: Record<string, string> = {
       status: `/control/status`,
       profile: `/control/profile`,
-      dns: `/control/dns_info`,
+      dnsSettings: `/control/dns_info`,
       filtering: `/control/filtering/status`,
       safebrowsing: `/control/safebrowsing/status`,
       parental: `/control/parental/status`,
