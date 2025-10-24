@@ -45,7 +45,16 @@ export async function POST(req: NextRequest) {
         logger.info(`[DEBUG] Endpoint '${key}' status: ${r.statusCode}, response length: ${String(r.body).length}`);
         if (r.statusCode >= 200 && r.statusCode < 300) {
           try {
-            results[key] = JSON.parse(r.body || '{}');
+            let data = JSON.parse(r.body || '{}');
+            // Normalize rewrites by removing 'enabled' field which may be present in newer AdGuard versions
+            if (key === 'rewrites' && Array.isArray(data)) {
+              data = data.map((r: Record<string, unknown>) => {
+                const normalized = { ...r };
+                delete normalized.enabled;
+                return normalized;
+              });
+            }
+            results[key] = data;
           } catch {
             results[key] = r.body;
           }
