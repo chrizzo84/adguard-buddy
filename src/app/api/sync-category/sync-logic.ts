@@ -234,11 +234,18 @@ export async function performCategorySync(
         const replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
         log(`<- Fetched rewrites successfully.`);
 
-        const masterRewriteSet = new Set(masterRewrites.map(r => JSON.stringify(r)));
-        const replicaRewriteMap = new Map(replicaRewrites.map(r => [JSON.stringify(r), r]));
+        // Normalize rewrites by removing 'enabled' field which is not critical for comparison
+        const normalizeRewrite = (r: Record<string, unknown>) => {
+            const normalized = { ...r };
+            delete normalized.enabled;
+            return JSON.stringify(normalized);
+        };
+
+        const masterRewriteSet = new Set(masterRewrites.map(r => normalizeRewrite(r as Record<string, unknown>)));
+        const replicaRewriteMap = new Map(replicaRewrites.map(r => [normalizeRewrite(r as Record<string, unknown>), r]));
 
         for (const rewrite of replicaRewrites) {
-            if (!masterRewriteSet.has(JSON.stringify(rewrite))) {
+            if (!masterRewriteSet.has(normalizeRewrite(rewrite as Record<string, unknown>))) {
                 log(`   - Removing rewrite: ${rewrite.domain} -> ${rewrite.answer}`);
                 const deleteRes = await fetchApi(destinationConnection, 'rewrite/delete', {
                     method: 'POST',
@@ -255,7 +262,7 @@ export async function performCategorySync(
         }
 
         for (const masterRewrite of masterRewrites) {
-            if (!replicaRewriteMap.has(JSON.stringify(masterRewrite))) {
+            if (!replicaRewriteMap.has(normalizeRewrite(masterRewrite as Record<string, unknown>))) {
                 log(`   + Adding new rewrite: ${masterRewrite.domain} -> ${masterRewrite.answer}`);
                 const addRes = await fetchApi(destinationConnection, 'rewrite/add', {
                     method: 'POST',

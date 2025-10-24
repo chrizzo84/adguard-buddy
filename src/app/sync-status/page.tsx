@@ -83,7 +83,7 @@ const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
 
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
-    const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'rules_count', 'default_local_ptr_upstreams'];
+    const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'rules_count', 'default_local_ptr_upstreams', 'enabled'];
 
     for (const key of keysA) {
         if (IGNORED_COMPARISON_KEYS.includes(key)) continue;
