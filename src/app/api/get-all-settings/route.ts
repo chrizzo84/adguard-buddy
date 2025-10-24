@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "../logger";
 import { httpRequest } from '../../lib/httpRequest';
-
-/**
- * Normalize rewrites by removing version-specific fields
- * Newer AdGuard versions include 'enabled' field, but it's not in the API type definition
- */
-function normalizeRewrites(data: unknown[]): unknown[] {
-    return data.map((item) => {
-        if (typeof item === 'object' && item !== null) {
-            const r = item as Record<string, unknown>;
-            const normalized = { ...r };
-            delete normalized.enabled;
-            return normalized;
-        }
-        return item;
-    });
-}
+import { normalizeRewrites } from '../rewriteUtils';
 
 export async function POST(req: NextRequest) {
     const { ip, url: connUrl, port = 80, username, password, allowInsecure = false } = await req.json();

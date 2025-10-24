@@ -1,6 +1,7 @@
 import { components } from "../../../types/adguard";
 import { httpRequest } from '../../lib/httpRequest';
 import { getConnectionDisplayName, type Connection } from '@/lib/connectionUtils';
+import { normalizeRewrites } from '../rewriteUtils';
 
 type Filter = {
     url: string;
@@ -10,18 +11,6 @@ type Filter = {
 
 // ConnectionDetails is compatible with Connection type from connectionUtils
 type ConnectionDetails = Connection;
-
-/**
- * Normalize rewrites by removing version-specific fields
- * Newer AdGuard versions include 'enabled' field, but it's not in the API type definition
- */
-function normalizeRewrites(rewrites: components['schemas']['RewriteList']): components['schemas']['RewriteList'] {
-    return rewrites.map(r => {
-        const normalized: Record<string, unknown> = { ...r };
-        delete normalized.enabled;
-        return normalized as components['schemas']['RewriteEntry'];
-    });
-}
 
 /**
  * Performs a category sync between a source (master) and destination (replica) connection.
