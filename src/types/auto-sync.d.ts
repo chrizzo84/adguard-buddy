@@ -1,6 +1,6 @@
 export type SyncInterval = '5min' | '15min' | '30min' | '1hour' | '2hour' | '6hour' | '12hour' | '24hour' | 'disabled';
 
-export type SyncCategory = 'filtering' | 'querylogConfig' | 'statsConfig' | 'rewrites' | 'blockedServices' | 'accessList';
+export type SyncCategory = 'filtering' | 'querylogConfig' | 'statsConfig' | 'rewrites' | 'blockedServices' | 'accessList' | 'dnsSettings';
 
 export interface AutoSyncConfig {
   enabled: boolean;

@@ -1,6 +1,7 @@
 import { components } from "../../../types/adguard";
 import { httpRequest } from '../../lib/httpRequest';
 import { getConnectionDisplayName, type Connection } from '@/lib/connectionUtils';
+import { normalizeRewrites } from '../rewriteUtils';
 
 type Filter = {
     url: string;
@@ -225,13 +226,15 @@ export async function performCategorySync(
         log(`-> Fetching rewrites from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'rewrite/list');
         if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceName}`);
-        const masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
+        let masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
+        masterRewrites = normalizeRewrites(masterRewrites);
         log(`<- Fetched rewrites successfully.`);
 
         log(`-> Fetching rewrites from replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'rewrite/list');
         if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destName}`);
-        const replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
+        let replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
+        replicaRewrites = normalizeRewrites(replicaRewrites);
         log(`<- Fetched rewrites successfully.`);
 
         const masterRewriteSet = new Set(masterRewrites.map(r => JSON.stringify(r)));
@@ -271,6 +274,87 @@ export async function performCategorySync(
             }
         }
         log(`<- Rewrites sync completed.`);
+    } else if (category === 'dnsSettings') {
+        log(`-> Fetching DNS settings from master: ${sourceName}`);
+        const masterRes = await fetchApi(sourceConnection, 'dns_info');
+        if (!masterRes.ok) throw new Error(`Failed to fetch DNS settings from master ${sourceName}`);
+        const masterDnsSettings = await masterRes.json();
+        log(`<- Fetched DNS settings successfully.`);
+
+        log(`-> Fetching DNS settings from replica: ${destName}`);
+        const replicaRes = await fetchApi(destinationConnection, 'dns_info');
+        if (!replicaRes.ok) throw new Error(`Failed to fetch DNS settings from replica ${destName}`);
+        const replicaDnsSettings = await replicaRes.json();
+        log(`<- Fetched replica DNS settings successfully.`);
+
+        // List of DNS settings properties to sync/compare
+        const DNS_SETTINGS_PROPERTIES = [
+            "upstream_dns",
+            "fallback_dns",
+            "bootstrap_dns",
+            "upstream_mode",
+            "upstream_timeout",
+            "cache_size",
+            "cache_ttl_min",
+            "cache_ttl_max",
+            "cache_enabled",
+            "cache_optimistic",
+            "blocking_mode",
+            "blocking_ipv4",
+            "blocking_ipv6",
+            "blocked_response_ttl",
+            "dnssec_enabled",
+            "disable_ipv6",
+            "edns_cs_enabled",
+            "edns_cs_use_custom",
+            "edns_cs_custom_ip",
+            "ratelimit",
+            "ratelimit_subnet_subnet_len_ipv4",
+            "ratelimit_subnet_subnet_len_ipv6",
+            "ratelimit_whitelist",
+            "local_ptr_upstreams",
+            "use_private_ptr_resolvers",
+            "resolve_clients",
+        ];
+
+        // Extract the DNS settings that should be synced
+        const dnsSettingsToSync = Object.fromEntries(
+            DNS_SETTINGS_PROPERTIES.map(key => [key, masterDnsSettings[key]])
+        );
+
+        // Check if settings are different
+        const replicaDnsSettingsToCompare = Object.fromEntries(
+            DNS_SETTINGS_PROPERTIES.map(key => [key, replicaDnsSettings[key]])
+        );
+
+        const settingsMatch = JSON.stringify(dnsSettingsToSync) === JSON.stringify(replicaDnsSettingsToCompare);
+
+        if (settingsMatch) {
+            log(`-> DNS settings are already in sync, no changes needed.`);
+        } else {
+            log(`-> DNS settings differ, syncing to replica: ${destName}`);
+            
+            // Log specific differences for debugging
+            for (const key in dnsSettingsToSync) {
+                const masterValue = (dnsSettingsToSync as Record<string, unknown>)[key];
+                const replicaValue = (replicaDnsSettingsToCompare as Record<string, unknown>)[key];
+                if (JSON.stringify(masterValue) !== JSON.stringify(replicaValue)) {
+                    log(`   - ${key}: master=[${masterValue}] replica=[${replicaValue}]`);
+                }
+            }
+
+            const pushRes = await fetchApi(destinationConnection, 'dns_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dnsSettingsToSync),
+            });
+
+            if (!pushRes.ok) {
+                const errorText = await pushRes.text();
+                throw new Error(`Failed to push DNS settings to replica ${destName}: ${pushRes.status} ${errorText}`);
+            }
+            log(`<- DNS settings synced successfully.`);
+        }
     } else {
         throw new Error(`Sync for category '${category}' is not yet implemented.`);
     }

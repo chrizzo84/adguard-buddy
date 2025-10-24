@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import logger from "../logger";
 import { httpRequest } from '../../lib/httpRequest';
+import { normalizeRewrites } from '../rewriteUtils';
 
 export async function POST(req: NextRequest) {
     const { ip, url: connUrl, port = 80, username, password, allowInsecure = false } = await req.json();
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
     const endpoints: Record<string, string> = {
       status: `/control/status`,
       profile: `/control/profile`,
-      dns: `/control/dns_info`,
+      dnsSettings: `/control/dns_info`,
       filtering: `/control/filtering/status`,
       safebrowsing: `/control/safebrowsing/status`,
       parental: `/control/parental/status`,
@@ -45,7 +46,12 @@ export async function POST(req: NextRequest) {
         logger.info(`[DEBUG] Endpoint '${key}' status: ${r.statusCode}, response length: ${String(r.body).length}`);
         if (r.statusCode >= 200 && r.statusCode < 300) {
           try {
-            results[key] = JSON.parse(r.body || '{}');
+            let data = JSON.parse(r.body || '{}');
+            // Normalize rewrites by removing 'enabled' field which may be present in newer AdGuard versions
+            if (key === 'rewrites' && Array.isArray(data)) {
+              data = normalizeRewrites(data);
+            }
+            results[key] = data;
           } catch {
             results[key] = r.body;
           }

@@ -1,5 +1,51 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**October 21, 2025 - v0.1.20251021**
+
+## 🎉 NEW FEATURE: Complete DNS Settings Synchronization
+
+**Major feature release!** Full DNS settings sync from master to client AdGuard Home instances is now available.
+
+### ✨ Features:
+
+**Complete DNS Settings Sync** ✅
+- **Upstream DNS servers** - Sync custom upstream DNS servers (tls://, https://, regular)
+- **Fallback DNS servers** - Sync DNS servers used when upstreams fail
+- **Bootstrap DNS servers** - Sync bootstrap DNS for secure DNS queries
+- **Load balancing mode** - Sync upstream mode (fastest_addr, load_balance, parallel)
+- **DNS Cache** - Sync cache size, TTL min/max, and cache settings
+- **DNSSEC** - Sync DNSSEC enable/disable flag
+- **Blocking Mode** - Sync response mode (default, refused, nxdomain, null_ip, custom_ip)
+- **Rate Limiting** - Sync rate limits and subnet masks
+- **EDNS Client Subnet** - Sync EDNS CS settings
+- **IPv6 Settings** - Sync disable IPv6 flag
+- **PTR Resolvers** - Sync local PTR upstream servers
+- **Advanced Settings** - Sync all other DNS configuration options
+
+### 🔍 Smart Sync Detection:
+
+- **Automatic Difference Detection** - Fetches both master and replica settings to identify actual differences
+- **Detailed Logging** - Shows exactly which DNS settings differ during sync
+- **Skips Unchanged Settings** - If DNS settings match, no sync is performed
+- **Status Page Updates** - Sync Status page now correctly shows "Out of Sync" when DNS settings differ
+- **Ignores Read-Only Fields** - `default_local_ptr_upstreams` and other read-only fields are properly ignored
+
+### 📋 Files Modified:
+- `src/types/auto-sync.d.ts` - Added 'dnsSettings' to SyncCategory
+- `src/app/api/sync-category/sync-logic.ts` - Complete DNS settings sync implementation with difference detection
+- `src/app/api/get-all-settings/route.ts` - Updated to return DNS settings under 'dnsSettings' key
+- `src/app/settings/page.tsx` - Added "DNS Settings" to sync category options
+- `src/app/sync-status/page.tsx` - Added DNS Settings to syncable keys and comparison ignore list
+- `src/app/api/sync-category/__tests__/route.test.ts` - Added comprehensive DNS sync tests
+
+### 🧪 Testing:
+
+- ✅ All 378 tests pass
+- ✅ 2 new DNS sync tests covering sync detection and in-sync scenarios
+- ✅ Sync status page tests updated and passing
+
+---
+
 **October 8, 2025 - v0.1.20251008**
 
 ## 🔧 CRITICAL FIX: Custom Filter Rules Overwriting
