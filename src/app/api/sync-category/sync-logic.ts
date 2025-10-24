@@ -225,27 +225,32 @@ export async function performCategorySync(
         log(`-> Fetching rewrites from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'rewrite/list');
         if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceName}`);
-        const masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
+        let masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
+        // Normalize: remove 'enabled' field which may be present in newer AdGuard versions but not in the type definition
+        masterRewrites = masterRewrites.map(r => {
+            const normalized: Record<string, unknown> = { ...r };
+            delete normalized.enabled;
+            return normalized as components['schemas']['RewriteEntry'];
+        });
         log(`<- Fetched rewrites successfully.`);
 
         log(`-> Fetching rewrites from replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'rewrite/list');
         if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destName}`);
-        const replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
+        let replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
+        // Normalize: remove 'enabled' field which may be present in newer AdGuard versions but not in the type definition
+        replicaRewrites = replicaRewrites.map(r => {
+            const normalized: Record<string, unknown> = { ...r };
+            delete normalized.enabled;
+            return normalized as components['schemas']['RewriteEntry'];
+        });
         log(`<- Fetched rewrites successfully.`);
 
-        // Normalize rewrites by removing 'enabled' field which is not critical for comparison
-        const normalizeRewrite = (r: Record<string, unknown>) => {
-            const normalized = { ...r };
-            delete normalized.enabled;
-            return JSON.stringify(normalized);
-        };
-
-        const masterRewriteSet = new Set(masterRewrites.map(r => normalizeRewrite(r as Record<string, unknown>)));
-        const replicaRewriteMap = new Map(replicaRewrites.map(r => [normalizeRewrite(r as Record<string, unknown>), r]));
+        const masterRewriteSet = new Set(masterRewrites.map(r => JSON.stringify(r)));
+        const replicaRewriteMap = new Map(replicaRewrites.map(r => [JSON.stringify(r), r]));
 
         for (const rewrite of replicaRewrites) {
-            if (!masterRewriteSet.has(normalizeRewrite(rewrite as Record<string, unknown>))) {
+            if (!masterRewriteSet.has(JSON.stringify(rewrite))) {
                 log(`   - Removing rewrite: ${rewrite.domain} -> ${rewrite.answer}`);
                 const deleteRes = await fetchApi(destinationConnection, 'rewrite/delete', {
                     method: 'POST',
@@ -262,7 +267,7 @@ export async function performCategorySync(
         }
 
         for (const masterRewrite of masterRewrites) {
-            if (!replicaRewriteMap.has(normalizeRewrite(masterRewrite as Record<string, unknown>))) {
+            if (!replicaRewriteMap.has(JSON.stringify(masterRewrite))) {
                 log(`   + Adding new rewrite: ${masterRewrite.domain} -> ${masterRewrite.answer}`);
                 const addRes = await fetchApi(destinationConnection, 'rewrite/add', {
                     method: 'POST',
