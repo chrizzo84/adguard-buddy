@@ -123,6 +123,7 @@ export default function SyncStatusPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'error'>('all');
   const [isTriggering, setIsTriggering] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, string | null>>({});
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   const showNotification = (message: string, type: 'success' | 'error') => {
@@ -351,7 +352,10 @@ export default function SyncStatusPage() {
   );
 
   const ComparisonCard = ({ ip, settings }: { ip: string, settings: { settings?: Settings; errors?: Record<string,string> } }) => {
-    const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+    const expandedCategory = expandedCategories[ip] || null;
+    const setExpandedCategory = (value: string | null) => {
+      setExpandedCategories(prev => ({ ...prev, [ip]: value }));
+    };
 
     if (!masterSettings) return null;
 
@@ -402,7 +406,7 @@ export default function SyncStatusPage() {
                     return (
                         <li key={key}>
                             <div className="flex justify-between items-center p-2 rounded-md hover:bg-gray-800">
-                                <button onClick={() => setExpandedCategory(prev => (prev === key ? null : key))} className="flex-grow text-left flex items-center gap-2">
+                                <button onClick={() => setExpandedCategory(expandedCategory === key ? null : key)} className="flex-grow text-left flex items-center gap-2">
                                     <span>{key}</span>
                                     <span>{expandedCategory === key ? '▼' : '▶'}</span>
                                 </button>
