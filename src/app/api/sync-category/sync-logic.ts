@@ -12,6 +12,18 @@ type Filter = {
 type ConnectionDetails = Connection;
 
 /**
+ * Normalize rewrites by removing version-specific fields
+ * Newer AdGuard versions include 'enabled' field, but it's not in the API type definition
+ */
+function normalizeRewrites(rewrites: components['schemas']['RewriteList']): components['schemas']['RewriteList'] {
+    return rewrites.map(r => {
+        const normalized: Record<string, unknown> = { ...r };
+        delete normalized.enabled;
+        return normalized as components['schemas']['RewriteEntry'];
+    });
+}
+
+/**
  * Performs a category sync between a source (master) and destination (replica) connection.
  * This is the core sync logic extracted for reuse by both manual sync and auto-sync.
  */
@@ -226,24 +238,14 @@ export async function performCategorySync(
         const masterRes = await fetchApi(sourceConnection, 'rewrite/list');
         if (!masterRes.ok) throw new Error(`Failed to fetch rewrites from master ${sourceName}`);
         let masterRewrites = await masterRes.json() as components['schemas']['RewriteList'];
-        // Normalize: remove 'enabled' field which may be present in newer AdGuard versions but not in the type definition
-        masterRewrites = masterRewrites.map(r => {
-            const normalized: Record<string, unknown> = { ...r };
-            delete normalized.enabled;
-            return normalized as components['schemas']['RewriteEntry'];
-        });
+        masterRewrites = normalizeRewrites(masterRewrites);
         log(`<- Fetched rewrites successfully.`);
 
         log(`-> Fetching rewrites from replica: ${destName}`);
         const replicaRes = await fetchApi(destinationConnection, 'rewrite/list');
         if (!replicaRes.ok) throw new Error(`Failed to fetch rewrites from replica ${destName}`);
         let replicaRewrites = await replicaRes.json() as components['schemas']['RewriteList'];
-        // Normalize: remove 'enabled' field which may be present in newer AdGuard versions but not in the type definition
-        replicaRewrites = replicaRewrites.map(r => {
-            const normalized: Record<string, unknown> = { ...r };
-            delete normalized.enabled;
-            return normalized as components['schemas']['RewriteEntry'];
-        });
+        replicaRewrites = normalizeRewrites(replicaRewrites);
         log(`<- Fetched rewrites successfully.`);
 
         const masterRewriteSet = new Set(masterRewrites.map(r => JSON.stringify(r)));
