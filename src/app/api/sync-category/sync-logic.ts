@@ -296,65 +296,45 @@ export async function performCategorySync(
         const replicaDnsSettings = await replicaRes.json();
         log(`<- Fetched replica DNS settings successfully.`);
 
+        // List of DNS settings properties to sync/compare
+        const DNS_SETTINGS_PROPERTIES = [
+            "upstream_dns",
+            "fallback_dns",
+            "bootstrap_dns",
+            "upstream_mode",
+            "upstream_timeout",
+            "cache_size",
+            "cache_ttl_min",
+            "cache_ttl_max",
+            "cache_enabled",
+            "cache_optimistic",
+            "blocking_mode",
+            "blocking_ipv4",
+            "blocking_ipv6",
+            "blocked_response_ttl",
+            "dnssec_enabled",
+            "disable_ipv6",
+            "edns_cs_enabled",
+            "edns_cs_use_custom",
+            "edns_cs_custom_ip",
+            "ratelimit",
+            "ratelimit_subnet_subnet_len_ipv4",
+            "ratelimit_subnet_subnet_len_ipv6",
+            "ratelimit_whitelist",
+            "local_ptr_upstreams",
+            "use_private_ptr_resolvers",
+            "resolve_clients",
+        ];
+
         // Extract the DNS settings that should be synced
-        const dnsSettingsToSync = {
-            upstream_dns: masterDnsSettings.upstream_dns,
-            fallback_dns: masterDnsSettings.fallback_dns,
-            bootstrap_dns: masterDnsSettings.bootstrap_dns,
-            upstream_mode: masterDnsSettings.upstream_mode,
-            upstream_timeout: masterDnsSettings.upstream_timeout,
-            cache_size: masterDnsSettings.cache_size,
-            cache_ttl_min: masterDnsSettings.cache_ttl_min,
-            cache_ttl_max: masterDnsSettings.cache_ttl_max,
-            cache_enabled: masterDnsSettings.cache_enabled,
-            cache_optimistic: masterDnsSettings.cache_optimistic,
-            blocking_mode: masterDnsSettings.blocking_mode,
-            blocking_ipv4: masterDnsSettings.blocking_ipv4,
-            blocking_ipv6: masterDnsSettings.blocking_ipv6,
-            blocked_response_ttl: masterDnsSettings.blocked_response_ttl,
-            dnssec_enabled: masterDnsSettings.dnssec_enabled,
-            disable_ipv6: masterDnsSettings.disable_ipv6,
-            edns_cs_enabled: masterDnsSettings.edns_cs_enabled,
-            edns_cs_use_custom: masterDnsSettings.edns_cs_use_custom,
-            edns_cs_custom_ip: masterDnsSettings.edns_cs_custom_ip,
-            ratelimit: masterDnsSettings.ratelimit,
-            ratelimit_subnet_subnet_len_ipv4: masterDnsSettings.ratelimit_subnet_subnet_len_ipv4,
-            ratelimit_subnet_subnet_len_ipv6: masterDnsSettings.ratelimit_subnet_subnet_len_ipv6,
-            ratelimit_whitelist: masterDnsSettings.ratelimit_whitelist,
-            local_ptr_upstreams: masterDnsSettings.local_ptr_upstreams,
-            use_private_ptr_resolvers: masterDnsSettings.use_private_ptr_resolvers,
-            resolve_clients: masterDnsSettings.resolve_clients,
-        };
+        const dnsSettingsToSync = Object.fromEntries(
+            DNS_SETTINGS_PROPERTIES.map(key => [key, masterDnsSettings[key]])
+        );
 
         // Check if settings are different
-        const replicaDnsSettingsToCompare = {
-            upstream_dns: replicaDnsSettings.upstream_dns,
-            fallback_dns: replicaDnsSettings.fallback_dns,
-            bootstrap_dns: replicaDnsSettings.bootstrap_dns,
-            upstream_mode: replicaDnsSettings.upstream_mode,
-            upstream_timeout: replicaDnsSettings.upstream_timeout,
-            cache_size: replicaDnsSettings.cache_size,
-            cache_ttl_min: replicaDnsSettings.cache_ttl_min,
-            cache_ttl_max: replicaDnsSettings.cache_ttl_max,
-            cache_enabled: replicaDnsSettings.cache_enabled,
-            cache_optimistic: replicaDnsSettings.cache_optimistic,
-            blocking_mode: replicaDnsSettings.blocking_mode,
-            blocking_ipv4: replicaDnsSettings.blocking_ipv4,
-            blocking_ipv6: replicaDnsSettings.blocking_ipv6,
-            blocked_response_ttl: replicaDnsSettings.blocked_response_ttl,
-            dnssec_enabled: replicaDnsSettings.dnssec_enabled,
-            disable_ipv6: replicaDnsSettings.disable_ipv6,
-            edns_cs_enabled: replicaDnsSettings.edns_cs_enabled,
-            edns_cs_use_custom: replicaDnsSettings.edns_cs_use_custom,
-            edns_cs_custom_ip: replicaDnsSettings.edns_cs_custom_ip,
-            ratelimit: replicaDnsSettings.ratelimit,
-            ratelimit_subnet_subnet_len_ipv4: replicaDnsSettings.ratelimit_subnet_subnet_len_ipv4,
-            ratelimit_subnet_subnet_len_ipv6: replicaDnsSettings.ratelimit_subnet_subnet_len_ipv6,
-            ratelimit_whitelist: replicaDnsSettings.ratelimit_whitelist,
-            local_ptr_upstreams: replicaDnsSettings.local_ptr_upstreams,
-            use_private_ptr_resolvers: replicaDnsSettings.use_private_ptr_resolvers,
-            resolve_clients: replicaDnsSettings.resolve_clients,
-        };
+        const replicaDnsSettingsToCompare = Object.fromEntries(
+            DNS_SETTINGS_PROPERTIES.map(key => [key, replicaDnsSettings[key]])
+        );
 
         const settingsMatch = JSON.stringify(dnsSettingsToSync) === JSON.stringify(replicaDnsSettingsToCompare);
 
