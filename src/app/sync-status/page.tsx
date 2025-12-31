@@ -32,7 +32,7 @@ const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
     };
 
     if (isFilterList(a) && isFilterList(b)) {
-      const toComparableString = (item: FilterListItem) => JSON.stringify({ name: item.name, url: item.url });
+      const toComparableString = (item: FilterListItem) => JSON.stringify({ name: item.name, url: item.url, rules_count: item.rules_count });
       const setA = new Set(a.map(toComparableString));
       const setB = new Set(b.map(toComparableString));
       if (setA.size !== setB.size) return false;
@@ -63,7 +63,7 @@ const areSettingsEqual = (a: SettingsValue, b: SettingsValue): boolean => {
 
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
-  const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'rules_count', 'default_local_ptr_upstreams'];
+  const IGNORED_COMPARISON_KEYS = ['id', 'last_updated', 'default_local_ptr_upstreams'];
   for (const key of keysA) {
     if (IGNORED_COMPARISON_KEYS.includes(key)) continue;
     if (!keysB.includes(key) || !areSettingsEqual((a as Record<string, SettingsValue>)[key], (b as Record<string, SettingsValue>)[key])) return false;
@@ -302,19 +302,46 @@ export default function SyncStatusPage() {
       logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [logs]);
     if (!show) return null;
+
+    // Check if sync is still running (no "Done." or error message at the end)
+    const isRunning = logs.length === 0 || (!logs[logs.length - 1]?.includes('Done.') && !logs[logs.length - 1]?.includes('ERROR') && !logs[logs.length - 1]?.includes('FATAL'));
+
     return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
         <div className="bg-[#181A20] border border-[#2A2D35] rounded-xl shadow-2xl w-full max-w-4xl h-[70vh] flex flex-col">
           <div className="flex justify-between items-center p-4 border-b border-[#2A2D35]">
-            <h2 className="text-lg font-bold text-white">{title}</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-bold text-white">{title}</h2>
+              {isRunning && (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-[var(--primary)] animate-spin" />
+                  <span className="text-xs text-gray-400">Processing...</span>
+                </div>
+              )}
+            </div>
             <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Info message */}
+          {isRunning && (
+            <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-400" />
+              <span className="text-xs text-blue-400">Filter sync may take a few minutes while servers download the latest rules...</span>
+            </div>
+          )}
+
           <div className="flex-grow p-4 overflow-y-auto font-mono text-sm text-gray-300 bg-[#0F1115]">
             {logs.map((log, index) => (
-              <div key={index} className={log.startsWith('ERROR') || log.startsWith('FATAL') ? 'text-red-400' : ''}>{`> ${log}`}</div>
+              <div key={index} className={`${log.startsWith('ERROR') || log.startsWith('FATAL') ? 'text-red-400' : ''} ${log.includes('Done.') ? 'text-[var(--primary)] font-bold' : ''}`}>{`> ${log}`}</div>
             ))}
+            {isRunning && logs.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 text-gray-500">
+                <div className="w-2 h-2 bg-[var(--primary)] rounded-full animate-pulse"></div>
+                <span className="text-xs">Waiting for response...</span>
+              </div>
+            )}
             <div ref={logsEndRef} />
           </div>
         </div>
@@ -349,6 +376,185 @@ export default function SyncStatusPage() {
     if (filterStatus !== 'all' && log.status !== filterStatus) return false;
     return true;
   });
+
+  // Component to display differences between master and target for a category
+  const DiffDisplay = ({ category, masterData, targetData }: {
+    category: string;
+    masterData: SettingsValue;
+    targetData: SettingsValue;
+  }) => {
+    // For filtering category - show filter-specific differences
+    if (category === 'filtering' && masterData && targetData && typeof masterData === 'object' && typeof targetData === 'object') {
+      const m = masterData as Record<string, SettingsValue>;
+      const t = targetData as Record<string, SettingsValue>;
+
+      const masterFilters = [...((m.filters as FilterListItem[]) || []), ...((m.whitelist_filters as FilterListItem[]) || [])];
+      const targetFilters = [...((t.filters as FilterListItem[]) || []), ...((t.whitelist_filters as FilterListItem[]) || [])];
+
+      const masterMap = new Map(masterFilters.map(f => [f.url, f]));
+      const targetMap = new Map(targetFilters.map(f => [f.url, f]));
+
+      type DiffItem = { name: string; masterVal: string; targetVal: string; type: 'setting' | 'missing' | 'extra' | 'changed' };
+      const diffs: DiffItem[] = [];
+
+      // Compare settings
+      if (m.enabled !== t.enabled) {
+        diffs.push({ name: 'Filtering Enabled', masterVal: m.enabled ? '✓ Enabled' : '○ Disabled', targetVal: t.enabled ? '✓ Enabled' : '○ Disabled', type: 'setting' });
+      }
+      if (m.interval !== t.interval) {
+        diffs.push({ name: 'Update Interval', masterVal: `${m.interval || 0} hours`, targetVal: `${t.interval || 0} hours`, type: 'setting' });
+      }
+      const masterRules = Array.isArray(m.user_rules) ? m.user_rules : [];
+      const targetRules = Array.isArray(t.user_rules) ? t.user_rules : [];
+      if (JSON.stringify(masterRules) !== JSON.stringify(targetRules)) {
+        diffs.push({ name: 'User Rules', masterVal: `${masterRules.length} rules`, targetVal: `${targetRules.length} rules`, type: 'setting' });
+      }
+
+      // Compare filters
+      masterFilters.forEach(mf => {
+        const tf = targetMap.get(mf.url);
+        if (!tf) {
+          diffs.push({ name: mf.name || 'Unknown', masterVal: `${mf.enabled ? '✓ Enabled' : '○ Disabled'} (${mf.rules_count?.toLocaleString() || 0} rules)`, targetVal: '❌ Missing', type: 'missing' });
+        } else if (mf.enabled !== tf.enabled) {
+          diffs.push({ name: mf.name || 'Unknown', masterVal: mf.enabled ? '✓ Enabled' : '○ Disabled', targetVal: tf.enabled ? '✓ Enabled' : '○ Disabled', type: 'changed' });
+        } else if (mf.rules_count !== tf.rules_count) {
+          diffs.push({ name: mf.name || 'Unknown', masterVal: `${mf.rules_count?.toLocaleString() || 0} rules`, targetVal: `${tf.rules_count?.toLocaleString() || 0} rules`, type: 'changed' });
+        }
+      });
+      targetFilters.forEach(tf => {
+        if (!masterMap.has(tf.url)) {
+          diffs.push({ name: tf.name || 'Unknown', masterVal: '❌ Not present', targetVal: `${tf.enabled ? '✓ Enabled' : '○ Disabled'} (${tf.rules_count?.toLocaleString() || 0} rules)`, type: 'extra' });
+        }
+      });
+
+      if (diffs.length === 0) return <div className="p-3 text-gray-500 text-sm">No specific differences found</div>;
+
+      return (
+        <div className="p-3 space-y-2">
+          {diffs.map((d, i) => (
+            <div key={i} className={`p-3 rounded-lg border ${d.type === 'setting' ? 'border-blue-500/30 bg-blue-500/5' :
+              d.type === 'missing' ? 'border-yellow-500/30 bg-yellow-500/5' :
+                d.type === 'extra' ? 'border-red-500/30 bg-red-500/5' : 'border-orange-500/30 bg-orange-500/5'
+              }`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="w-4 h-4 text-gray-400" />
+                <span className="text-white text-sm font-medium">{d.name}</span>
+                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${d.type === 'setting' ? 'bg-blue-500/20 text-blue-400' :
+                  d.type === 'missing' ? 'bg-yellow-500/20 text-yellow-400' :
+                    d.type === 'extra' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'
+                  }`}>{d.type.toUpperCase()}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-[#0F1115]"><span className="text-gray-500">Master:</span> <span className="text-[var(--primary)]">{d.masterVal}</span></div>
+                <div className="p-2 rounded bg-[#181A20]"><span className="text-gray-500">Target:</span> <span className={d.type === 'missing' ? 'text-yellow-400' : d.type === 'extra' ? 'text-red-400' : 'text-orange-400'}>{d.targetVal}</span></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // For rewrites - show individual rewrites that differ
+    if (category === 'rewrites') {
+      const masterRewrites = (Array.isArray(masterData) ? masterData : []) as { domain?: string; answer?: string }[];
+      const targetRewrites = (Array.isArray(targetData) ? targetData : []) as { domain?: string; answer?: string }[];
+      const masterSet = new Set(masterRewrites.map(r => `${r.domain}→${r.answer}`));
+      const targetSet = new Set(targetRewrites.map(r => `${r.domain}→${r.answer}`));
+      const onlyInMaster = masterRewrites.filter(r => !targetSet.has(`${r.domain}→${r.answer}`));
+      const onlyInTarget = targetRewrites.filter(r => !masterSet.has(`${r.domain}→${r.answer}`));
+
+      return (
+        <div className="p-3 space-y-2">
+          {onlyInMaster.length > 0 && (
+            <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+              <p className="text-yellow-400 text-sm font-medium mb-2">⚠ Missing in Target ({onlyInMaster.length}):</p>
+              {onlyInMaster.map((r, i) => <div key={i} className="text-xs p-1"><span className="text-gray-300">{r.domain}</span> → <span className="text-[var(--primary)]">{r.answer}</span></div>)}
+            </div>
+          )}
+          {onlyInTarget.length > 0 && (
+            <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+              <p className="text-red-400 text-sm font-medium mb-2">✗ Extra in Target ({onlyInTarget.length}):</p>
+              {onlyInTarget.map((r, i) => <div key={i} className="text-xs p-1"><span className="text-gray-300">{r.domain}</span> → <span className="text-red-400">{r.answer}</span></div>)}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // For blockedServices
+    if (category === 'blockedServices') {
+      const getIds = (d: SettingsValue): string[] => {
+        if (Array.isArray(d)) return d as string[];
+        if (d && typeof d === 'object' && 'ids' in (d as Record<string, unknown>)) return ((d as Record<string, unknown>).ids as string[]) || [];
+        return [];
+      };
+      const masterIds = new Set(getIds(masterData));
+      const targetIds = new Set(getIds(targetData));
+      const onlyInMaster = [...masterIds].filter(s => !targetIds.has(s));
+      const onlyInTarget = [...targetIds].filter(s => !masterIds.has(s));
+
+      return (
+        <div className="p-3 space-y-2">
+          {onlyInMaster.length > 0 && (
+            <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+              <p className="text-yellow-400 text-sm font-medium mb-2">⚠ Not blocked in Target:</p>
+              <div className="flex flex-wrap gap-1">{onlyInMaster.map(s => <span key={s} className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">{s}</span>)}</div>
+            </div>
+          )}
+          {onlyInTarget.length > 0 && (
+            <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
+              <p className="text-red-400 text-sm font-medium mb-2">✗ Extra blocked in Target:</p>
+              <div className="flex flex-wrap gap-1">{onlyInTarget.map(s => <span key={s} className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">{s}</span>)}</div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Generic object comparison for other categories
+    if (masterData && targetData && typeof masterData === 'object' && typeof targetData === 'object' && !Array.isArray(masterData) && !Array.isArray(targetData)) {
+      const m = masterData as Record<string, SettingsValue>;
+      const t = targetData as Record<string, SettingsValue>;
+      const diffs: { key: string; masterVal: string; targetVal: string }[] = [];
+
+      for (const key of Object.keys(m)) {
+        if (!areSettingsEqual(m[key], t[key])) {
+          diffs.push({ key, masterVal: typeof m[key] === 'object' ? JSON.stringify(m[key]) : String(m[key]), targetVal: t[key] !== undefined ? (typeof t[key] === 'object' ? JSON.stringify(t[key]) : String(t[key])) : '(missing)' });
+        }
+      }
+      for (const key of Object.keys(t)) {
+        if (!(key in m)) {
+          diffs.push({ key, masterVal: '(missing)', targetVal: typeof t[key] === 'object' ? JSON.stringify(t[key]) : String(t[key]) });
+        }
+      }
+
+      if (diffs.length === 0) return <div className="p-3 text-gray-500 text-sm">No specific differences found</div>;
+
+      return (
+        <div className="p-3 space-y-2">
+          {diffs.map((d, i) => (
+            <div key={i} className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-white text-sm font-medium">{d.key}</span>
+                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-500/20 text-orange-400">DIFF</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-[#0F1115] overflow-hidden"><span className="text-gray-500">Master:</span> <span className="text-[var(--primary)] break-all">{d.masterVal.length > 60 ? d.masterVal.substring(0, 60) + '...' : d.masterVal}</span></div>
+                <div className="p-2 rounded bg-[#181A20] overflow-hidden"><span className="text-gray-500">Target:</span> <span className="text-orange-400 break-all">{d.targetVal.length > 60 ? d.targetVal.substring(0, 60) + '...' : d.targetVal}</span></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Fallback for arrays or primitives
+    return (
+      <div className="p-3 text-gray-500 text-sm">
+        <p>Cannot display detailed comparison for this data type.</p>
+      </div>
+    );
+  };
 
   const ComparisonCard = ({ ip, settings }: { ip: string, settings: { settings?: Settings; errors?: Record<string, string> } }) => {
     const expandedCategory = expandedCategories[ip] || null;
@@ -421,16 +627,11 @@ export default function SyncStatusPage() {
                     </button>
                   </div>
                   {isExpanded && (
-                    <div className="grid grid-cols-2 gap-4 p-3 bg-[#0F1115]/50 text-xs">
-                      <div>
-                        <h4 className="font-bold text-gray-500 mb-2">Master</h4>
-                        <pre className="text-gray-400 whitespace-pre-wrap break-all">{JSON.stringify(masterSettings[key], null, 2)}</pre>
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-gray-500 mb-2">This Server</h4>
-                        <pre className="text-gray-400 whitespace-pre-wrap break-all">{JSON.stringify(targetSettings[key], null, 2)}</pre>
-                      </div>
-                    </div>
+                    <DiffDisplay
+                      category={key}
+                      masterData={masterSettings[key]}
+                      targetData={targetSettings[key]}
+                    />
                   )}
                 </div>
               );
