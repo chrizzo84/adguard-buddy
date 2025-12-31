@@ -19,13 +19,17 @@ type Connection = {
 type TopArrayEntry = { [key: string]: number };
 
 type StatsData = {
-  avg_processing_time: number;
-  dns_queries: number;
-  top_queried_domains: TopArrayEntry[];
-  top_blocked_domains: TopArrayEntry[];
-  top_clients: TopArrayEntry[];
-  top_upstreams_avg_time: TopArrayEntry[];
-  top_upstreams_responses: TopArrayEntry[];
+    avg_processing_time: number;
+    dns_queries: number;
+    num_dns_queries?: number;
+    num_blocked_filtering?: number;
+    num_replaced_safebrowsing?: number;
+    num_replaced_parental?: number;
+    top_queried_domains: TopArrayEntry[];
+    top_blocked_domains: TopArrayEntry[];
+    top_clients: TopArrayEntry[];
+    top_upstreams_avg_time: TopArrayEntry[];
+    top_upstreams_responses: TopArrayEntry[];
 };
 
 const dataFilePath = path.join(process.cwd(), '.data', 'connections.json');
@@ -56,14 +60,14 @@ async function fetchStatsForServer(connection: Connection): Promise<StatsData | 
             // Ignore decryption errors for now, maybe the password is not encrypted
         }
 
-    const base = connection.url && connection.url.length > 0 ? connection.url.replace(/\/$/, '') : `http://${connection.ip}:${connection.port || 80}`;
+        const base = connection.url && connection.url.length > 0 ? connection.url.replace(/\/$/, '') : `http://${connection.ip}:${connection.port || 80}`;
         const statsUrl = `${base}/control/stats`;
         const headers: Record<string, string> = {};
         if (connection.username && decryptedPassword) {
             headers["Authorization"] = "Basic " + Buffer.from(`${connection.username}:${decryptedPassword}`).toString("base64");
         }
 
-    const r = await httpRequest({ method: 'GET', url: statsUrl, headers, allowInsecure: connection.allowInsecure });
+        const r = await httpRequest({ method: 'GET', url: statsUrl, headers, allowInsecure: connection.allowInsecure });
         if (r.statusCode < 200 || r.statusCode >= 300) {
             logger.warn(`Failed to fetch stats from ${connection.ip || connection.url || 'unknown'}: ${r.statusCode}`);
             return null;
@@ -84,6 +88,10 @@ function aggregateStats(statsList: StatsData[]): StatsData {
     const combined: StatsData = {
         avg_processing_time: 0,
         dns_queries: 0,
+        num_dns_queries: 0,
+        num_blocked_filtering: 0,
+        num_replaced_safebrowsing: 0,
+        num_replaced_parental: 0,
         top_queried_domains: [],
         top_blocked_domains: [],
         top_clients: [],
@@ -91,12 +99,18 @@ function aggregateStats(statsList: StatsData[]): StatsData {
         top_upstreams_responses: [],
     };
 
-    const totalDnsQueries = statsList.reduce((sum, stats) => sum + (stats.dns_queries || 0), 0);
+    const totalDnsQueries = statsList.reduce((sum, stats) => sum + (stats.dns_queries || stats.num_dns_queries || 0), 0);
     combined.dns_queries = totalDnsQueries;
+    combined.num_dns_queries = totalDnsQueries;
+
+    // Sum up blocking stats
+    combined.num_blocked_filtering = statsList.reduce((sum, stats) => sum + (stats.num_blocked_filtering || 0), 0);
+    combined.num_replaced_safebrowsing = statsList.reduce((sum, stats) => sum + (stats.num_replaced_safebrowsing || 0), 0);
+    combined.num_replaced_parental = statsList.reduce((sum, stats) => sum + (stats.num_replaced_parental || 0), 0);
 
     // Weighted average for processing time
     if (totalDnsQueries > 0) {
-        const totalProcessingTime = statsList.reduce((sum, stats) => sum + (stats.avg_processing_time * (stats.dns_queries || 0)), 0);
+        const totalProcessingTime = statsList.reduce((sum, stats) => sum + (stats.avg_processing_time * (stats.dns_queries || stats.num_dns_queries || 0)), 0);
         combined.avg_processing_time = totalProcessingTime / totalDnsQueries;
     }
 
@@ -115,7 +129,7 @@ function aggregateStats(statsList: StatsData[]): StatsData {
             .sort((a, b) => b[1] - a[1])
             .map(([key, value]) => ({ [key]: value }));
     };
-    
+
     // For avg_time upstreams, we need to calculate the weighted average
     const aggregateTopListAvg = (listName: keyof Pick<StatsData, 'top_upstreams_avg_time'>) => {
         const timeMap = new Map<string, { totalTime: number, count: number }>();
