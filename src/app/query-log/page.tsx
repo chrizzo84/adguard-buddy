@@ -393,8 +393,7 @@ export default function QueryLogPage() {
   useEffect(() => {
     const minVisible = pageSize;
     if (visibleCount < minVisible) setVisibleCount(minVisible);
-    if (visibleCount > filteredLogs.length) setVisibleCount(filteredLogs.length);
-  }, [filteredLogs.length, pageSize, visibleCount]);
+  }, [pageSize, visibleCount]);
 
   useEffect(() => {
     const onScroll = () => {

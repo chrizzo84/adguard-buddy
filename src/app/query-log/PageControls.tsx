@@ -40,8 +40,8 @@ const PageControls = React.memo(function PageControls(props: Props) {
             <button
               onClick={() => props.setMode('single')}
               className={`relative z-10 px-4 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${props.mode === 'single'
-                  ? 'text-black bg-[var(--primary)]'
-                  : 'text-gray-400 hover:text-white'
+                ? 'text-black bg-[var(--primary)]'
+                : 'text-gray-400 hover:text-white'
                 }`}
             >
               <Server className="w-4 h-4" />
@@ -51,8 +51,8 @@ const PageControls = React.memo(function PageControls(props: Props) {
               onClick={() => props.setMode('combined')}
               disabled={props.connectionsCount < 2}
               className={`relative z-10 px-4 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${props.mode === 'combined'
-                  ? 'text-black bg-[var(--primary)]'
-                  : 'text-gray-400 hover:text-white'
+                ? 'text-black bg-[var(--primary)]'
+                : 'text-gray-400 hover:text-white'
                 }`}
             >
               <Users className="w-4 h-4" />
@@ -63,11 +63,12 @@ const PageControls = React.memo(function PageControls(props: Props) {
 
         {/* Server Selection */}
         <div className="flex-1 min-w-0">
-          <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">
+          <label htmlFor="server-select" className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">
             {props.mode === 'single' ? 'Server' : 'Servers'}
           </label>
           {props.mode === 'single' ? (
             <select
+              id="server-select"
               value={props.selectedId}
               onChange={(e) => props.onSelectId(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-[#2A2D35] bg-[#0F1115] text-gray-300 focus:outline-none focus:border-[var(--primary)]"
@@ -91,10 +92,11 @@ const PageControls = React.memo(function PageControls(props: Props) {
 
         {/* Refresh Interval */}
         <div className="flex-shrink-0 w-40">
-          <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1">
+          <label htmlFor="refresh-interval" className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider flex items-center gap-1">
             <Clock className="w-3 h-3" /> Refresh
           </label>
           <select
+            id="refresh-interval"
             value={props.refreshInterval}
             onChange={(e) => props.onSetRefreshInterval(Number(e.target.value))}
             className="w-full px-4 py-2.5 rounded-lg border border-[#2A2D35] bg-[#0F1115] text-gray-300 focus:outline-none focus:border-[var(--primary)]"
@@ -125,8 +127,9 @@ const PageControls = React.memo(function PageControls(props: Props) {
         {props.mode === 'combined' && (
           <>
             <div className="w-36">
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Concurrency</label>
+              <label htmlFor="concurrency-select" className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Concurrency</label>
               <select
+                id="concurrency-select"
                 value={props.concurrency}
                 onChange={(e) => props.setConcurrency(Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-lg border border-[#2A2D35] bg-[#0F1115] text-gray-300 focus:outline-none focus:border-[var(--primary)] text-sm"
@@ -138,8 +141,9 @@ const PageControls = React.memo(function PageControls(props: Props) {
             </div>
 
             <div className="w-36">
-              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Max Total</label>
+              <label htmlFor="max-total-select" className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Max Total</label>
               <select
+                id="max-total-select"
                 value={props.combinedMax}
                 onChange={(e) => props.setCombinedMax(Number(e.target.value))}
                 className="w-full px-3 py-2 rounded-lg border border-[#2A2D35] bg-[#0F1115] text-gray-300 focus:outline-none focus:border-[var(--primary)] text-sm"

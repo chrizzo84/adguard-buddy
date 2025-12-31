@@ -34,12 +34,12 @@ global.fetch = mockFetch;
 // Helper function to mock auto-sync config response
 const mockAutoSyncConfigResponse = () => ({
   ok: true,
-  json: () => Promise.resolve({ 
-    config: { 
-      enabled: false, 
-      interval: '0 */6 * * *', 
+  json: () => Promise.resolve({
+    config: {
+      enabled: false,
+      interval: '0 */6 * * *',
       categories: [],
-      paused: false 
+      paused: false
     },
     isPaused: false,
     isRunning: false,
@@ -58,7 +58,7 @@ describe('Settings', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockClear();
-    
+
     // Default: Mock both /api/get-connections and /api/auto-sync-config
     // Tests can override this by calling mockFetch.mockImplementation or adding more mockResolvedValueOnce calls
     mockFetch.mockImplementation((url) => {
@@ -86,7 +86,6 @@ describe('Settings', () => {
       render(<Settings />);
     });
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
@@ -202,7 +201,7 @@ describe('Settings', () => {
     });
 
     const passwordInput = screen.getByPlaceholderText('Password');
-    const toggleButton = screen.getByText('👁️');
+    const toggleButton = screen.getByLabelText('Show password');
 
     expect(passwordInput).toHaveAttribute('type', 'password');
 

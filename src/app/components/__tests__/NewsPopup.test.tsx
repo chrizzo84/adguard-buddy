@@ -42,8 +42,8 @@ describe('NewsPopup', () => {
     const previewButton = screen.getByText('Preview');
     const rawButton = screen.getByText('Raw');
 
-    expect(previewButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
-    expect(rawButton).not.toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(previewButton).toHaveClass('bg-[#2A2D35]', 'text-white');
+    expect(rawButton).not.toHaveClass('bg-[#2A2D35]');
   });
 
   it('should switch to raw mode when Raw button is clicked', () => {
@@ -53,8 +53,8 @@ describe('NewsPopup', () => {
     fireEvent.click(rawButton);
 
     // Raw button should now be active
-    expect(rawButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
-    expect(screen.getByText('Preview')).not.toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(rawButton).toHaveClass('bg-[#2A2D35]', 'text-white');
+    expect(screen.getByText('Preview')).not.toHaveClass('bg-[#2A2D35]');
 
     // Should display content as raw text
     expect(screen.getByText('Test news content')).toBeInTheDocument();
@@ -71,8 +71,8 @@ describe('NewsPopup', () => {
     const previewButton = screen.getByText('Preview');
     fireEvent.click(previewButton);
 
-    expect(previewButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
-    expect(rawButton).not.toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(previewButton).toHaveClass('bg-[#2A2D35]', 'text-white');
+    expect(rawButton).not.toHaveClass('bg-[#2A2D35]');
   });
 
   it('should call onClose when close button is clicked', () => {
@@ -148,11 +148,11 @@ describe('NewsPopup', () => {
 
     // Check main container classes
     const mainContainer = screen.getByTestId('news-preview-content').closest('.fixed');
-    expect(mainContainer).toHaveClass('fixed', 'inset-0', 'z-50', 'flex', 'items-center', 'justify-center', 'bg-black/50');
+    expect(mainContainer).toHaveClass('fixed', 'inset-0', 'z-50', 'flex', 'items-center', 'justify-center', 'bg-black/70', 'backdrop-blur-sm');
 
     // Check modal classes
-    const modal = mainContainer?.querySelector('.bg-white');
-    expect(modal).toHaveClass('bg-white', 'dark:bg-[#0b1220]', 'max-w-3xl', 'w-full', 'mx-4', 'rounded-xl', 'shadow-xl', 'overflow-hidden', 'max-h-[80vh]');
+    const modal = mainContainer?.querySelector('.bg-\\[\\#181A20\\]');
+    expect(modal).toHaveClass('bg-[#181A20]', 'border', 'border-[#2A2D35]', 'max-w-3xl', 'w-full', 'mx-4', 'rounded-xl', 'shadow-2xl', 'overflow-hidden', 'max-h-[80vh]');
   });
 
   it('should handle mode switching multiple times', () => {
@@ -163,15 +163,15 @@ describe('NewsPopup', () => {
 
     // Switch to raw
     fireEvent.click(rawButton);
-    expect(rawButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(rawButton).toHaveClass('bg-[#2A2D35]', 'text-white');
 
     // Switch to preview
     fireEvent.click(previewButton);
-    expect(previewButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(previewButton).toHaveClass('bg-[#2A2D35]', 'text-white');
 
     // Switch to raw again
     fireEvent.click(rawButton);
-    expect(rawButton).toHaveClass('bg-gray-200', 'dark:bg-white/5');
+    expect(rawButton).toHaveClass('bg-[#2A2D35]', 'text-white');
   });
 
   it('should call onClose only when close button is clicked', () => {

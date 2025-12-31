@@ -311,8 +311,8 @@ export default function Settings() {
       {/* Notification Toast */}
       {notification && (
         <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 ${notification.type === 'success'
-            ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
-            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+          ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
+          : 'bg-red-500/20 text-red-400 border border-red-500/30'
           }`}>
           {notification.type === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
           {notification.message}
@@ -409,6 +409,7 @@ export default function Settings() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -453,8 +454,8 @@ export default function Settings() {
                 <div
                   key={idx}
                   className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${isMaster
-                      ? 'bg-[var(--primary)]/5 border-[var(--primary)]/30'
-                      : 'bg-[#0F1115] border-[#2A2D35]'
+                    ? 'bg-[var(--primary)]/5 border-[var(--primary)]/30'
+                    : 'bg-[#0F1115] border-[#2A2D35]'
                     }`}
                 >
                   <div className="flex-grow min-w-0">
@@ -475,8 +476,8 @@ export default function Settings() {
                       onClick={() => handleSetMaster(conn)}
                       title="Set as master for sync"
                       className={`p-2 rounded-lg transition-colors ${isMaster
-                          ? 'text-yellow-400'
-                          : 'text-gray-500 hover:text-yellow-400 hover:bg-white/5'
+                        ? 'text-yellow-400'
+                        : 'text-gray-500 hover:text-yellow-400 hover:bg-white/5'
                         }`}
                     >
                       <Star className="w-5 h-5" fill={isMaster ? 'currentColor' : 'none'} />
@@ -593,8 +594,8 @@ export default function Settings() {
                 <button
                   onClick={handlePauseResume}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${isPaused
-                      ? 'bg-[var(--primary)] text-black hover:bg-[var(--primary-dark)]'
-                      : 'bg-yellow-600 text-white hover:bg-yellow-500'
+                    ? 'bg-[var(--primary)] text-black hover:bg-[var(--primary-dark)]'
+                    : 'bg-yellow-600 text-white hover:bg-yellow-500'
                     }`}
                 >
                   {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
@@ -615,8 +616,8 @@ export default function Settings() {
               key={t}
               onClick={() => setTheme(t)}
               className={`px-6 py-3 rounded-lg font-medium capitalize transition-all ${theme === t
-                  ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30 shadow-[0_0_15px_var(--primary-light)]'
-                  : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
+                ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30 shadow-[0_0_15px_var(--primary-light)]'
+                : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
                 }`}
             >
               {t}

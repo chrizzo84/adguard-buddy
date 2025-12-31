@@ -1,56 +1,44 @@
 import { render, screen } from '@testing-library/react';
 import Home from '../page';
 
-// Mock NavMenu component
-jest.mock('../components/NavMenu', () => ({
-  __esModule: true,
-  default: () => <nav data-testid="nav-menu">Navigation Menu</nav>,
-}));
+// Mock dependencies (though Home has none now except next/link which works in Jest usually, or might need simple mock if strictly unit)
+// Next/link usually renders as a <a> tag in tests if not mocked, which is fine.
 
 describe('Home', () => {
   it('renders the main heading', () => {
     render(<Home />);
-
     const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading).toHaveTextContent('AdGuard Buddy');
-    expect(heading).toHaveClass('text-2xl');
-    expect(heading).toHaveClass('font-bold');
-    expect(heading).toHaveClass('mb-6');
-    expect(heading).toHaveClass('text-center');
+    // Text might be split into spans, so we check for content
+    expect(heading).toHaveTextContent(/Welcome to/i);
+    expect(heading).toHaveTextContent(/AdGuard Buddy/i);
   });
 
-  it('renders the welcome message', () => {
+  it('renders the description paragraph', () => {
     render(<Home />);
-
-    const paragraph = screen.getByText('Welcome! Use the menu to manage settings or view the dashboard.');
-    expect(paragraph).toHaveClass('text-center');
-    expect(paragraph).toHaveClass('text-gray-600');
-    expect(paragraph).toHaveClass('mb-8');
+    expect(screen.getByText(/A powerful tool to manage and synchronize your AdGuard Home instances/i)).toBeInTheDocument();
   });
 
-  it('renders the NavMenu component', () => {
+  it('renders quick navigation links', () => {
     render(<Home />);
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
+    // Check for specific links (Dashboard appears twice: in card and getting started)
+    const dashboardLinks = screen.getAllByRole('link', { name: /Dashboard/i });
+    expect(dashboardLinks.length).toBeGreaterThanOrEqual(1);
+    expect(dashboardLinks[0]).toHaveAttribute('href', '/dashboard');
+
+    expect(screen.getByRole('link', { name: /Query Log/i })).toHaveAttribute('href', '/query-log');
+    expect(screen.getByRole('link', { name: /Statistics/i })).toHaveAttribute('href', '/statistics');
+    expect(screen.getByRole('link', { name: /Sync Status/i })).toHaveAttribute('href', '/sync-status');
+
+    // Check for Settings links (appears twice: in card and getting started)
+    const settingsLinks = screen.getAllByRole('link', { name: /Settings/i });
+    expect(settingsLinks.length).toBeGreaterThanOrEqual(1);
+    expect(settingsLinks[0]).toHaveAttribute('href', '/settings');
   });
 
-  it('renders with correct container styling', () => {
+  it('renders Getting Started guide', () => {
     render(<Home />);
-
-    const container = screen.getByText('AdGuard Buddy').closest('div');
-    expect(container).toHaveClass('max-w-lg');
-    expect(container).toHaveClass('mx-auto');
-    expect(container).toHaveClass('p-8');
-  });
-
-  it('renders all content in correct order', () => {
-    render(<Home />);
-
-    const container = screen.getByText('AdGuard Buddy').closest('div');
-    const children = container?.children;
-
-    expect(children?.[0]).toHaveAttribute('data-testid', 'nav-menu');
-    expect(children?.[1]).toHaveRole('heading');
-    expect(children?.[2]).toHaveTextContent('Welcome! Use the menu to manage settings or view the dashboard.');
+    expect(screen.getByRole('heading', { level: 2, name: /Getting Started/i })).toBeInTheDocument();
+    expect(screen.getByText(/Set a master server for synchronization/i)).toBeInTheDocument();
   });
 });

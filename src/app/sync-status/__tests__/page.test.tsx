@@ -27,16 +27,16 @@ global.fetch = mockFetch;
 // Helper function to mock auto-sync config response
 const mockAutoSyncConfigResponse = () => ({
   ok: true,
-  json: () => Promise.resolve({ 
+  json: () => Promise.resolve({
     config: {
-      enabled: false, 
+      enabled: false,
       interval: '0 */6 * * *',
       categories: [],
       paused: false
     },
-    isRunning: false, 
-    isPaused: false, 
-    nextSync: null, 
+    isRunning: false,
+    isPaused: false,
+    nextSync: null,
     recentLogs: []
   }),
 });
@@ -51,7 +51,7 @@ describe('SyncStatusPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockClear();
-    
+
     // Default: Mock /api/auto-sync-config to avoid unhandled fetch errors
     mockFetch.mockImplementation((url) => {
       if (url === '/api/auto-sync-config') {
@@ -78,7 +78,6 @@ describe('SyncStatusPage', () => {
       render(<SyncStatusPage />);
     });
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
     expect(screen.getByText('Sync Status')).toBeInTheDocument();
   });
 
@@ -150,7 +149,7 @@ describe('SyncStatusPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('In Sync with Master')).toBeInTheDocument();
+      expect(screen.getAllByText('In Sync')[0]).toBeInTheDocument();
     });
   });
 
@@ -183,26 +182,26 @@ describe('SyncStatusPage', () => {
     ];
 
     mockFetch.mockImplementation(async (url, options) => {
-        if (url === '/api/auto-sync-config') {
-          return mockAutoSyncConfigResponse();
+      if (url === '/api/auto-sync-config') {
+        return mockAutoSyncConfigResponse();
+      }
+      if (url === '/api/get-connections') {
+        return {
+          ok: true,
+          json: async () => ({ connections: mockConnections, masterServerIp: '192.168.1.1:8080' }),
+        };
+      }
+      if (url === '/api/get-all-settings') {
+        const body = await JSON.parse(options.body);
+        if (body.ip === '192.168.1.1') {
+          return {
+            ok: true,
+            json: async () => ({ settings: { filtering: { enabled: true } } })
+          };
         }
-        if (url === '/api/get-connections') {
-            return {
-                ok: true,
-                json: async () => ({ connections: mockConnections, masterServerIp: '192.168.1.1:8080' }),
-            };
-        }
-        if (url === '/api/get-all-settings') {
-            const body = await JSON.parse(options.body);
-            if (body.ip === '192.168.1.1') {
-                return {
-                    ok: true,
-                    json: async () => ({ settings: { filtering: { enabled: true } } })
-                };
-            }
-            return { ok: false, json: async () => ({ message: 'Sync failed' }) };
-        }
-        throw new Error(`Unhandled fetch call: ${url}`);
+        return { ok: false, json: async () => ({ message: 'Sync failed' }) };
+      }
+      throw new Error(`Unhandled fetch call: ${url}`);
     });
 
 
@@ -343,7 +342,7 @@ describe('SyncStatusPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('In Sync with Master')).toBeInTheDocument();
+      expect(screen.getAllByText('In Sync')[0]).toBeInTheDocument();
     });
   });
 
@@ -402,7 +401,8 @@ describe('SyncStatusPage', () => {
 
     let syncButton: HTMLElement;
     await waitFor(() => {
-      syncButton = screen.getByText('Sync');
+      const syncButtons = screen.getAllByText('Sync');
+      syncButton = syncButtons[0];
       expect(syncButton).toBeInTheDocument();
     });
 
@@ -446,7 +446,7 @@ describe('SyncStatusPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Configured master server not found in connections list.')).toBeInTheDocument();
+      expect(screen.getByText('Configured master server not found.')).toBeInTheDocument();
     });
   });
 });

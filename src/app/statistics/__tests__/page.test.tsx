@@ -40,8 +40,7 @@ describe('StatisticsPage', () => {
       render(<StatisticsPage />);
     });
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('fetches connections on mount', async () => {
@@ -75,7 +74,7 @@ describe('StatisticsPage', () => {
     });
 
     // Should still render the page even with fetch error
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('renders view mode selector', async () => {
@@ -93,7 +92,7 @@ describe('StatisticsPage', () => {
     });
 
     // Should render the page structure
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('fetches combined statistics when view mode is combined', async () => {
@@ -129,7 +128,7 @@ describe('StatisticsPage', () => {
     });
 
     // Should be able to fetch combined stats
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('fetches single server statistics when view mode is single', async () => {
@@ -165,7 +164,7 @@ describe('StatisticsPage', () => {
     });
 
     // Should be able to fetch single server stats
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('handles statistics fetch error gracefully', async () => {
@@ -192,7 +191,7 @@ describe('StatisticsPage', () => {
     });
 
     // Should handle API errors gracefully
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 
   it('shows loading state during data fetch', async () => {
@@ -216,6 +215,6 @@ describe('StatisticsPage', () => {
     });
 
     // Should handle loading states
-    expect(screen.getByText('Statistics')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Network Traffic/i })).toBeInTheDocument();
   });
 });
