@@ -388,8 +388,8 @@ export default function SyncStatusPage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-mono text-white text-lg">{ip}</h3>
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${isSynced
-              ? 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/30'
-              : 'bg-red-500/10 text-red-400 border border-red-500/30'
+            ? 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/30'
+            : 'bg-red-500/10 text-red-400 border border-red-500/30'
             }`}>
             {isSynced ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
             {isSynced ? 'In Sync' : 'Out of Sync'}
@@ -444,7 +444,6 @@ export default function SyncStatusPage() {
   const uniqueReplicas = Array.from(new Set(autoSyncLogs.map(log => log.replicaId)));
   const uniqueCategories = Array.from(new Set(autoSyncLogs.map(log => log.category)));
   const successCount = autoSyncLogs.filter(log => log.status === 'success').length;
-  const errorCount = autoSyncLogs.filter(log => log.status === 'error').length;
   const successRate = autoSyncLogs.length > 0 ? ((successCount / autoSyncLogs.length) * 100).toFixed(1) : '0';
 
   return (
@@ -452,8 +451,8 @@ export default function SyncStatusPage() {
       {/* Notification */}
       {notification && (
         <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 ${notification.type === 'success'
-            ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
-            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+          ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
+          : 'bg-red-500/20 text-red-400 border border-red-500/30'
           }`}>
           {notification.message}
           <button onClick={() => setNotification(null)} className="hover:opacity-70"><X className="w-4 h-4" /></button>
@@ -475,8 +474,8 @@ export default function SyncStatusPage() {
         <button
           onClick={() => setActiveTab('status')}
           className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${activeTab === 'status'
-              ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30'
-              : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
+            ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30'
+            : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
             }`}
         >
           <GitCompare className="w-4 h-4" />
@@ -485,8 +484,8 @@ export default function SyncStatusPage() {
         <button
           onClick={() => setActiveTab('auto-sync')}
           className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${activeTab === 'auto-sync'
-              ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30'
-              : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
+            ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30'
+            : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
             }`}
         >
           <History className="w-4 h-4" />
@@ -559,8 +558,8 @@ export default function SyncStatusPage() {
               onClick={triggerAutoSync}
               disabled={!autoSyncConfig?.enabled || isTriggering || autoSyncPaused}
               className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${!autoSyncConfig?.enabled || isTriggering || autoSyncPaused
-                  ? 'bg-[#2A2D35] text-gray-500 cursor-not-allowed'
-                  : 'bg-[var(--primary)] text-black hover:bg-[var(--primary-dark)]'
+                ? 'bg-[#2A2D35] text-gray-500 cursor-not-allowed'
+                : 'bg-[var(--primary)] text-black hover:bg-[var(--primary-dark)]'
                 }`}
             >
               {isTriggering ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
@@ -611,8 +610,8 @@ export default function SyncStatusPage() {
               <div className="space-y-2 max-h-[500px] overflow-y-auto">
                 {filteredAutoSyncLogs.map((log, index) => (
                   <div key={index} className={`p-3 rounded-lg border flex items-center justify-between ${log.status === 'success'
-                      ? 'bg-[#0F1115] border-[var(--primary)]/30'
-                      : 'bg-red-500/5 border-red-500/30'
+                    ? 'bg-[#0F1115] border-[var(--primary)]/30'
+                    : 'bg-red-500/5 border-red-500/30'
                     }`}>
                     <div className="flex items-center gap-3">
                       <span className={`text-xl ${log.status === 'success' ? 'text-[var(--primary)]' : 'text-red-400'}`}>
