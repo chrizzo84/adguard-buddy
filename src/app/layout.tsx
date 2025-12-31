@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "./components/AppProviders";
 import { SiteFooter } from "./components/SiteFooter";
+import { NavBar } from "./components/NavBar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -25,15 +28,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased bg-[#0F1115] text-gray-300 min-h-screen flex flex-col`}
       >
         <AppProviders>
-          <div className="flex flex-col min-h-screen">
-            <main className="flex-grow">{children}</main>
-            <SiteFooter />
-          </div>
+          <NavBar />
+          <main className="flex-grow">{children}</main>
+          <SiteFooter />
         </AppProviders>
       </body>
     </html>

@@ -25,7 +25,7 @@ export async function performCategorySync(
     // Helper to get display names for logging
     const sourceName = getConnectionDisplayName(sourceConnection);
     const destName = getConnectionDisplayName(destinationConnection);
-    
+
     const fetchApi = async (conn: ConnectionDetails & { url?: string; allowInsecure?: boolean }, endpoint: string, options: RequestInit = {}) => {
         // Build base URL - prefer explicit URL over IP:port
         let base: string;
@@ -36,17 +36,17 @@ export async function performCategorySync(
         } else {
             throw new Error('Connection must have either url or ip specified');
         }
-        
+
         const url = `${base}/control/${endpoint}`;
-        
+
         // Check if password is empty (decryption might have failed)
         if (!conn.password || conn.password.length === 0) {
             log(`WARNING: Empty password for connection - authentication will fail!`);
             log(`  Username: ${conn.username}`);
             log(`  URL: ${url}`);
         }
-        
-        const headers = { ...(options.headers as Record<string,string> || {}), 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' } as Record<string,string>;
+
+        const headers = { ...(options.headers as Record<string, string> || {}), 'Authorization': conn.username ? "Basic " + Buffer.from(`${conn.username}:${conn.password}`).toString("base64") : '' } as Record<string, string>;
         const method = (options.method && (options.method === 'POST' || options.method === 'PUT')) ? String(options.method) : 'GET';
         const r = await httpRequest({ method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', url, headers, body: options.body as string || null, allowInsecure: conn.allowInsecure });
         return { ok: r.statusCode >= 200 && r.statusCode < 300, status: r.statusCode, text: async () => r.body, json: async () => JSON.parse(r.body || '{}') } as Response;
@@ -73,7 +73,7 @@ export async function performCategorySync(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled: masterSettings.enabled, interval: masterSettings.interval }),
         });
-        if(!configRes.ok) {
+        if (!configRes.ok) {
             const errorText = await configRes.text();
             throw new Error(`Failed to sync basic filtering config to replica ${destName}: ${configRes.status} ${errorText}`);
         }
@@ -85,7 +85,7 @@ export async function performCategorySync(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rules: masterSettings.user_rules }),
         });
-        if(!rulesRes.ok) {
+        if (!rulesRes.ok) {
             const errorText = await rulesRes.text();
             throw new Error(`Failed to sync user rules to replica ${destName}: ${rulesRes.status} ${errorText}`);
         }
@@ -161,6 +161,33 @@ export async function performCategorySync(
 
         await syncFilterList(masterSettings.filters, replicaSettings.filters, false);
         await syncFilterList(masterSettings.whitelist_filters, replicaSettings.whitelist_filters, true);
+
+        // Trigger filter list refresh on BOTH master and replica to ensure both have latest rules
+        log("--> Triggering filter list refresh on master...");
+        const masterRefreshRes = await fetchApi(sourceConnection, 'filtering/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ whitelist: false }),
+        });
+        if (!masterRefreshRes.ok) {
+            const errorText = await masterRefreshRes.text();
+            log(`<- WARNING: Master filter refresh failed: ${masterRefreshRes.status} ${errorText}`);
+        } else {
+            log("<- Master filter refresh triggered successfully.");
+        }
+
+        log("--> Triggering filter list refresh on replica...");
+        const replicaRefreshRes = await fetchApi(destinationConnection, 'filtering/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ whitelist: false }),
+        });
+        if (!replicaRefreshRes.ok) {
+            const errorText = await replicaRefreshRes.text();
+            log(`<- WARNING: Replica filter refresh failed: ${replicaRefreshRes.status} ${errorText}`);
+        } else {
+            log("<- Replica filter refresh triggered successfully.");
+        }
 
     } else if (category === 'querylogConfig' || category === 'statsConfig') {
         const getConfigEndpoint = category === 'querylogConfig' ? 'querylog/config' : 'stats/config';
@@ -333,7 +360,7 @@ export async function performCategorySync(
             log(`-> DNS settings are already in sync, no changes needed.`);
         } else {
             log(`-> DNS settings differ, syncing to replica: ${destName}`);
-            
+
             // Log specific differences for debugging
             for (const key in dnsSettingsToSync) {
                 const masterValue = (dnsSettingsToSync as Record<string, unknown>)[key];

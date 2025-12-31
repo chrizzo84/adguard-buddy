@@ -41,7 +41,6 @@ describe('Dashboard', () => {
       render(<Dashboard />);
     });
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
 

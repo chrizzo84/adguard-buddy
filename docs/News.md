@@ -1,5 +1,43 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**December 31, 2025 - v0.1.20251231**
+
+## 🎨 COMPLETE REDESIGN
+
+**A brand new look for Sync Status!** We have completely rebuilt the Sync Status interface from the ground up to provide a modern, card-based comparison experience. Say goodbye to raw JSON data and confusing tables.
+
+### 💎 UI Overhaul & UX Improvements:
+
+![Dashboard](/pics/redesign.png)
+
+**Smart Comparison Cards** 🃏
+- **Total Redesign** - Replaced the technical debug view with beautiful, user-friendly Comparison Cards.
+- **Diff-Only Focus** - The intuitive new design hides identical settings and critically focuses **only** on what differs between your Master and Replica servers.
+- **Visual Diff Badges** - Instantly identify the type of discrepancy with new high-contrast badges:
+    - 🔵 `SETTING` - Configuration mismatches
+    - 🟡 `MISSING` - Content missing on target
+    - 🔴 `EXTRA` - Content present on target but not master
+    - 🟠 `CHANGED` - State differences (e.g., rule counts)
+
+**Enhanced Feedback System** 📢
+- **Live Activity Hub** - The log viewer has been upgraded to a real-time status hub.
+- **Smart Progress Indicators** - Animated spinners and status pulses show you exactly what the system is doing.
+- **Contextual Info Banners** - Helpful explanations appear during long-running processes (like filter downloads).
+
+### 🧠 Intelligent Sync Engine:
+
+**Smart Filter Refresh** 🔄
+- **Dual-Side Updates** - Syncing filters now automatically triggers rule updates on **both** Master and Replica servers.
+- **Consistency Guarantee** - This prevents "fake" diffs caused by stale caches effectively keeping your entire fleet in perfect sync.
+- **Deep Comparison** - We now detect differences in rule counts, enabled status, and list presence with precision.
+
+### 📋 Files Modified:
+- `src/app/sync-status/page.tsx` - **REWRITE:** Complete UI implementation
+- `src/app/api/sync-category/sync-logic.ts` - **UPDATE:** Added smart refresh logic
+- `src/app/api/refresh-filters/route.ts` - **NEW:** Refresh endpoint
+
+---
+
 **October 21, 2025 - v0.1.20251021**
 
 ## 🎉 NEW FEATURE: Complete DNS Settings Synchronization

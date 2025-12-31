@@ -63,7 +63,7 @@ describe('PageControls', () => {
     render(<PageControls {...mockProps} mode="combined" />);
 
     expect(screen.getByText('Servers')).toBeInTheDocument();
-    expect(screen.getByText('2 servers')).toBeInTheDocument();
+    expect(screen.getByText('2 servers selected')).toBeInTheDocument();
   });
 
   it('calls onSelectId when server selection changes', () => {
@@ -78,7 +78,7 @@ describe('PageControls', () => {
   it('renders refresh interval select with correct options', () => {
     render(<PageControls {...mockProps} />);
 
-    const select = screen.getByLabelText('Refresh Interval');
+    const select = screen.getByLabelText('Refresh');
     expect(select).toHaveValue('5000');
 
     expect(screen.getByText('2 Seconds')).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('PageControls', () => {
   it('calls onSetRefreshInterval when refresh interval changes', () => {
     render(<PageControls {...mockProps} />);
 
-    const select = screen.getByLabelText('Refresh Interval');
+    const select = screen.getByLabelText('Refresh');
     fireEvent.change(select, { target: { value: '10000' } });
 
     expect(mockProps.onSetRefreshInterval).toHaveBeenCalledWith(10000);
@@ -100,22 +100,22 @@ describe('PageControls', () => {
   it('renders combined mode controls when mode is combined', () => {
     render(<PageControls {...mockProps} mode="combined" />);
 
-    expect(screen.getByLabelText('Combined concurrency')).toBeInTheDocument();
-    expect(screen.getByText('Per-server limit')).toBeInTheDocument();
-    expect(screen.getByText('Combined max')).toBeInTheDocument();
+    expect(screen.getByLabelText('Concurrency')).toBeInTheDocument();
+    expect(screen.getByText('Limit')).toBeInTheDocument();
+    expect(screen.getByText('Max Total')).toBeInTheDocument();
   });
 
   it('renders single mode controls when mode is single', () => {
     render(<PageControls {...mockProps} mode="single" />);
 
-    expect(screen.getByText('Per-server limit')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Combined concurrency')).not.toBeInTheDocument();
+    expect(screen.getByText('Limit')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Concurrency')).not.toBeInTheDocument();
   });
 
   it('calls setConcurrency when concurrency changes', () => {
     render(<PageControls {...mockProps} mode="combined" />);
 
-    const select = screen.getByLabelText('Combined concurrency');
+    const select = screen.getByLabelText('Concurrency');
     fireEvent.change(select, { target: { value: '5' } });
 
     expect(mockProps.setConcurrency).toHaveBeenCalledWith(5);

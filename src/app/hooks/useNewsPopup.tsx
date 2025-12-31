@@ -42,9 +42,11 @@ export function useNewsPopup() {
           lastSeenHash = null;
         }
 
+        // Always set content so it's available for manual opening
+        setNewsContent(content);
+        setCurrentNewsHash(hash);
+
         if (hash !== lastSeenHash) {
-          setNewsContent(content);
-          setCurrentNewsHash(hash);
           setIsNewsPopupOpen(true);
         }
       } catch {

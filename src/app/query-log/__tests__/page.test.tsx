@@ -49,7 +49,6 @@ describe('QueryLogPage', () => {
       render(<QueryLogPage />);
     });
 
-    expect(screen.getByTestId('nav-menu')).toBeInTheDocument();
     expect(screen.getByText('Query Log')).toBeInTheDocument();
   });
 
