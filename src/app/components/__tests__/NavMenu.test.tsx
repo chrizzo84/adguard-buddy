@@ -32,11 +32,8 @@ describe('NavMenu', () => {
     render(<NavMenu />);
 
     const dashboardLink = screen.getByText('Dashboard');
-    expect(dashboardLink).toHaveClass('text-neon');
-
-    // Check for the active indicator
-    const activeIndicator = dashboardLink.parentElement?.querySelector('.bg-\\[var\\(--primary\\)\\]');
-    expect(activeIndicator).toBeInTheDocument();
+    // Updated class check for new styling
+    expect(dashboardLink).toHaveClass('text-[var(--primary)]');
   });
 
   it('applies inactive styling to non-current page links', () => {

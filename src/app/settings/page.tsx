@@ -1,10 +1,10 @@
 "use client";
-import NavMenu from "../components/NavMenu";
 import { useState, useEffect, useCallback } from "react";
 import CryptoJS from "crypto-js";
 import { useTheme } from "../contexts/ThemeContext";
 import { AutoSyncConfig, SyncInterval, SyncCategory } from "@/types/auto-sync";
 import { getConnectionId, type Connection } from "@/lib/connectionUtils";
+import { Plus, Edit2, Trash2, TestTube, Star, Eye, EyeOff, Clock, Layers, Play, Pause, AlertTriangle, X, Check } from "lucide-react";
 
 type FormState = {
   target: string;
@@ -20,7 +20,7 @@ export default function Settings() {
   const [form, setForm] = useState<FormState>({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [masterServerIp, setMasterServerIp] = useState<string | null>(null);
   const [autoSyncConfig, setAutoSyncConfig] = useState<AutoSyncConfig>({
     enabled: false,
@@ -35,9 +35,7 @@ export default function Settings() {
   const fetchSettings = useCallback(async () => {
     try {
       const response = await fetch('/api/get-connections');
-      if (!response.ok) {
-        throw new Error('Failed to fetch settings.');
-      }
+      if (!response.ok) throw new Error('Failed to fetch settings.');
       const data = await response.json();
       setConnections(data.connections || []);
       setMasterServerIp(data.masterServerIp || null);
@@ -50,26 +48,20 @@ export default function Settings() {
   const fetchAutoSyncConfig = useCallback(async () => {
     try {
       const response = await fetch('/api/auto-sync-config');
-      if (!response || !response.ok) {
-        throw new Error('Failed to fetch auto-sync config.');
-      }
+      if (!response || !response.ok) throw new Error('Failed to fetch auto-sync config.');
       const data = await response.json();
       setAutoSyncConfig(data.config);
       setLastSyncTime(data.config?.lastSync || null);
       setNextSyncTime(data.nextSync || null);
       setIsPaused(data.isPaused || false);
     } catch (error) {
-      const err = error as Error;
-      console.error(`Error fetching auto-sync config: ${err.message}`);
-      // Keep default values if fetch fails
+      console.error(`Error fetching auto-sync config:`, error);
     }
   }, []);
 
   useEffect(() => {
     fetchSettings();
     fetchAutoSyncConfig();
-    
-    // Refresh auto-sync status every 30 seconds
     const interval = setInterval(fetchAutoSyncConfig, 30000);
     return () => clearInterval(interval);
   }, [fetchSettings, fetchAutoSyncConfig]);
@@ -91,8 +83,8 @@ export default function Settings() {
         throw new Error(errorData.message || 'Failed to save settings.');
       }
     } catch (error) {
-        const err = error as Error;
-        showNotification(`Error saving settings: ${err.message}`, 'error');
+      const err = error as Error;
+      showNotification(`Error saving settings: ${err.message}`, 'error');
     }
   };
 
@@ -111,23 +103,23 @@ export default function Settings() {
     }
 
     try {
-    const res = await fetch("/api/check-adguard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...conn, password: decrypted }),
-    });
-        const data = await res.json();
-    if (data.status === 'connected') {
-      if (!quiet) showNotification(`Successfully connected to ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}`, 'success');
-            return true;
-        } else {
-      if (!quiet) showNotification(`Connection failed for ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}: ${data.response || 'Unknown error'}`, 'error');
-            return false;
-        }
-    } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : String(e);
-        if (!quiet) showNotification(`Network error testing connection for ${conn.ip}: ${message}`, 'error');
+      const res = await fetch("/api/check-adguard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...conn, password: decrypted }),
+      });
+      const data = await res.json();
+      if (data.status === 'connected') {
+        if (!quiet) showNotification(`Successfully connected to ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}`, 'success');
+        return true;
+      } else {
+        if (!quiet) showNotification(`Connection failed for ${conn.url || (conn.ip ? `${conn.ip}:${conn.port}` : 'target')}: ${data.response || 'Unknown error'}`, 'error');
         return false;
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (!quiet) showNotification(`Network error testing connection: ${message}`, 'error');
+      return false;
     }
   };
 
@@ -181,14 +173,13 @@ export default function Settings() {
     }
 
     saveConnections(newConnections);
-
     showNotification(`Connection ${isUpdating ? 'updated' : 'saved'}. Testing...`, 'success');
     const testSuccess = await handleTest(newConnection, true);
 
-    if(testSuccess) {
+    if (testSuccess) {
       showNotification(`Connection to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} successful!`, 'success');
     } else {
-      showNotification(`Could not connect to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} after saving. Please check details.`, 'error');
+      showNotification(`Could not connect to ${newConnection.url || (newConnection.ip ? `${newConnection.ip}:${newConnection.port}` : 'target')} after saving.`, 'error');
     }
 
     setEditingIndex(null);
@@ -198,11 +189,11 @@ export default function Settings() {
   const handleEdit = (index: number) => {
     const connToEdit = connections[index];
     setForm({
-  target: connToEdit.url ? connToEdit.url : (connToEdit.ip || ""),
-  port: connToEdit.port || 80,
-  username: connToEdit.username,
-  password: "", // Keep password field blank for security
-  allowInsecure: connToEdit.allowInsecure || false,
+      target: connToEdit.url ? connToEdit.url : (connToEdit.ip || ""),
+      port: connToEdit.port || 80,
+      username: connToEdit.username,
+      password: "",
+      allowInsecure: connToEdit.allowInsecure || false,
     });
     setEditingIndex(index);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -210,18 +201,15 @@ export default function Settings() {
 
   const handleCancelEdit = () => {
     setEditingIndex(null);
-  setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
+    setForm({ target: "", port: 80, username: "", password: "", allowInsecure: false });
   };
 
   const handleSetMaster = (conn: Connection) => {
-    // Normalize the identifier: prefer URL, fallback to ip:port
     const masterId = getConnectionId(conn);
-    
     if (!masterId) {
       showNotification('Cannot set master: connection has no valid identifier', 'error');
       return;
     }
-    
     setMasterServerIp(masterId);
     saveSettingsToServer(connections, masterId);
     showNotification(`${masterId} is now the master server for sync.`, 'success');
@@ -239,15 +227,11 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update auto-sync config');
-      }
-      
+      if (!response.ok) throw new Error('Failed to update auto-sync config');
       const data = await response.json();
       setAutoSyncConfig(data.config);
       showNotification('Auto-sync configuration updated successfully', 'success');
-      fetchAutoSyncConfig(); // Refresh to get latest status
+      fetchAutoSyncConfig();
     } catch (error) {
       const err = error as Error;
       showNotification(`Error updating auto-sync config: ${err.message}`, 'error');
@@ -269,15 +253,11 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to ${action} auto-sync`);
-      }
-
+      if (!response.ok) throw new Error(`Failed to ${action} auto-sync`);
       const data = await response.json();
       setIsPaused(data.paused);
       showNotification(data.message, 'success');
-      fetchAutoSyncConfig(); // Refresh status
+      fetchAutoSyncConfig();
     } catch (error) {
       const err = error as Error;
       showNotification(`Error: ${err.message}`, 'error');
@@ -288,19 +268,18 @@ export default function Settings() {
     if (!timestamp) return 'Never';
     const now = Date.now();
     const diff = timestamp - now;
-    
     if (diff < 0) {
       const ago = Math.abs(diff);
       const minutes = Math.floor(ago / 60000);
       const hours = Math.floor(minutes / 60);
-      if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-      if (minutes > 0) return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+      if (hours > 0) return `${hours}h ago`;
+      if (minutes > 0) return `${minutes}m ago`;
       return 'Just now';
     } else {
       const minutes = Math.floor(diff / 60000);
       const hours = Math.floor(minutes / 60);
-      if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
-      if (minutes > 0) return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+      if (hours > 0) return `in ${hours}h`;
+      if (minutes > 0) return `in ${minutes}m`;
       return 'Soon';
     }
   };
@@ -328,158 +307,244 @@ export default function Settings() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto p-8 dashboard-bg rounded-xl shadow-xl relative">
+    <main className="flex-grow p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full relative">
+      {/* Notification Toast */}
       {notification && (
-        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 p-4 rounded-lg shadow-lg text-white z-50
-          ${notification.type === 'success' ? 'bg-primary-dark text-primary' : 'bg-danger-dark text-danger'}`}
-        >
+        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 ${notification.type === 'success'
+            ? 'bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30'
+            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+          }`}>
+          {notification.type === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
           {notification.message}
-          <button onClick={() => setNotification(null)} className="ml-4 font-bold">X</button>
+          <button onClick={() => setNotification(null)} className="ml-2 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
-      <NavMenu />
-      <h1 className="text-3xl font-extrabold mb-8 text-center dashboard-title">Settings</h1>
-      <div className="mb-10 adguard-card">
-        <h2 className="font-semibold mb-4 card-title">{editingIndex !== null ? 'Edit Connection' : 'New Connection'}</h2>
-        <div className="flex flex-col gap-4 mb-4">
-          <div className="flex gap-4">
-            <input
-              type="text"
-              placeholder="IP or URL (include http:// or https:// for URLs)"
-              value={form.target}
-              onChange={e => {
-                const val = e.target.value;
-                setForm(f => {
-                  let newPort = f.port;
-                  try {
-                    const parsed = new URL(val);
-                    if (parsed.port) {
-                      newPort = parseInt(parsed.port, 10);
-                    } else if (parsed.protocol === 'https:') {
-                      newPort = 443;
-                    } else if (parsed.protocol === 'http:') {
-                      newPort = 80;
-                    }
-                  } catch {
-                    // not a full URL; if user types starting with 'https' assume 443
-                    if (String(val).startsWith('https')) {
-                      newPort = 443;
-                    }
-                  }
-                  return { ...f, target: val, port: newPort };
-                });
-              }}
-              className="flex-grow px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-            />
-            <input
-              type="number"
-              placeholder="Port"
-              value={form.port}
-              onChange={e => setForm(f => ({ ...f, port: parseInt(e.target.value, 10) || 0 }))}
-              className="w-24 px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-            />
-          </div>
-          {/* Full URL input removed — single 'target' field covers IP or full URL */}
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.allowInsecure} onChange={e => setForm(f => ({ ...f, allowInsecure: e.target.checked }))} />
-            <span className="text-sm text-primary">Allow insecure SSL (accept self-signed certificates)</span>
-          </label>
-          <input
-            type="text"
-            placeholder="Username"
-            value={form.username}
-            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
-            className="px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon"
-          />
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              placeholder={editingIndex !== null ? "New Password (optional)" : "Password"}
-              value={form.password}
-              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              className="px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary placeholder-neon w-full"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-primary focus:outline-none"
-              tabIndex={-1}
-            >
-              {showPassword ? "🙈" : "👁️"}
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-4">
-            {editingIndex !== null && (
-                <button onClick={handleCancelEdit} className="px-6 py-3 rounded-lg font-bold text-lg w-full bg-gray-600 hover:bg-gray-700 text-white transition-colors">Cancel</button>
-            )}
-            <button onClick={handleSave} className="px-6 py-3 rounded-lg font-bold text-lg w-full text-primary border border-neon shadow-neon hover:bg-gray-800 transition-colors">
-                {editingIndex !== null ? 'Update' : 'Save'}
-            </button>
-        </div>
-      </div>
-      <div className="adguard-card">
-        <h2 className="font-semibold mb-4 card-title">Saved Connections</h2>
-        <ul className="space-y-4">
-          {connections.map((conn, idx) => (
-            <li key={idx} className="flex items-center gap-4 bg-gray-900 rounded-lg px-4 py-3 shadow-neon border border-neon">
-              <span className="font-mono text-primary">{conn.url && conn.url.length > 0 ? conn.url : `${conn.ip || 'unknown'}:${conn.port || ''}`}</span>
-              <span className="text-primary">{conn.username}</span>
-              <div className="ml-auto flex gap-2 items-center">
-                <button onClick={() => handleSetMaster(conn)} title="Set as master for sync">
-                  <svg className={`w-5 h-5 transition-colors ${masterServerIp === getConnectionId(conn) ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400'}`} viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                </button>
-                <button onClick={() => handleEdit(idx)} className="px-3 py-1 rounded text-xs text-primary border border-neon hover:bg-gray-800 transition-colors">Edit</button>
-                <button onClick={() => handleTest(conn)} className="px-3 py-1 rounded text-xs text-primary border border-neon hover:bg-gray-800 transition-colors">Test</button>
-                <button onClick={() => handleDelete(idx)} className="px-3 py-1 rounded text-xs text-danger border border-danger hover:bg-danger-dark transition-colors">Delete</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
 
-      <div className="mt-10 adguard-card">
-        <h2 className="font-semibold mb-4 card-title">Automatic Sync</h2>
-        
-        {/* Beta Warning */}
-        <div className="mb-4 p-3 bg-yellow-900/30 border-l-4 border-yellow-500 rounded">
-          <div className="flex items-start gap-2">
-            <span className="text-yellow-500 text-lg">⚠️</span>
-            <div className="flex-1">
-              <p className="text-yellow-500 font-semibold text-sm">BETA Feature</p>
-              <p className="text-gray-300 text-xs mt-1">
-                This is a new feature currently in beta testing. Please report any issues you encounter.
-              </p>
+      {/* Header */}
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-white tracking-tight">Settings</h1>
+        <p className="text-sm text-gray-500 mt-1">Manage connections, auto-sync, and appearance.</p>
+      </header>
+
+      {/* Add/Edit Connection Form */}
+      <div className="adguard-card mb-8">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          {editingIndex !== null ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+          {editingIndex !== null ? 'Edit Connection' : 'New Connection'}
+        </h2>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="md:col-span-3">
+              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">IP or URL</label>
+              <input
+                type="text"
+                placeholder="IP or URL (include http:// or https:// for URLs)"
+                value={form.target}
+                onChange={e => {
+                  const val = e.target.value;
+                  setForm(f => {
+                    let newPort = f.port;
+                    try {
+                      const parsed = new URL(val);
+                      if (parsed.port) newPort = parseInt(parsed.port, 10);
+                      else if (parsed.protocol === 'https:') newPort = 443;
+                      else if (parsed.protocol === 'http:') newPort = 80;
+                    } catch {
+                      if (String(val).startsWith('https')) newPort = 443;
+                    }
+                    return { ...f, target: val, port: newPort };
+                  });
+                }}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Port</label>
+              <input
+                type="number"
+                placeholder="Port"
+                value={form.port}
+                onChange={e => setForm(f => ({ ...f, port: parseInt(e.target.value, 10) || 0 }))}
+                className="w-full"
+              />
             </div>
           </div>
-        </div>
-        
-        <p className="text-gray-400 text-sm mb-4">
-          Configure automatic synchronization of settings from the master server to all replica servers.
-        </p>
-        
-        <div className="mb-6 flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
+
+          <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
             <input
               type="checkbox"
-              checked={autoSyncConfig?.enabled || false}
-              onChange={(e) => handleAutoSyncUpdate({ enabled: e.target.checked })}
-              className="w-5 h-5"
+              checked={form.allowInsecure}
+              onChange={e => setForm(f => ({ ...f, allowInsecure: e.target.checked }))}
+              className="w-4 h-4 rounded border-[#2A2D35] bg-[#0F1115] text-[var(--primary)]"
             />
-            <span className="text-primary font-semibold">Enable Automatic Sync</span>
+            Allow insecure SSL (accept self-signed certificates)
           </label>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Username</label>
+              <input
+                type="text"
+                placeholder="Username"
+                value={form.username}
+                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+                className="w-full"
+              />
+            </div>
+            <div className="relative">
+              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">
+                {editingIndex !== null ? "New Password (optional)" : "Password"}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder={editingIndex !== null ? "Leave blank to keep existing" : "Password"}
+                  value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                  className="w-full pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            {editingIndex !== null && (
+              <button
+                onClick={handleCancelEdit}
+                className="flex-1 px-4 py-3 rounded-lg font-medium text-gray-400 bg-[#0F1115] border border-[#2A2D35] hover:border-gray-500 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              className="flex-1 px-4 py-3 rounded-lg font-medium text-black bg-[var(--primary)] hover:bg-[var(--primary-dark)] transition-colors"
+            >
+              {editingIndex !== null ? 'Update' : 'Save'}
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Saved Connections */}
+      <div className="adguard-card mb-8">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Layers className="w-5 h-5" />
+          Saved Connections
+        </h2>
+        {connections.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">No connections configured yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {connections.map((conn, idx) => {
+              const connId = getConnectionId(conn);
+              const isMaster = masterServerIp === connId;
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-center gap-4 p-4 rounded-lg border transition-colors ${isMaster
+                      ? 'bg-[var(--primary)]/5 border-[var(--primary)]/30'
+                      : 'bg-[#0F1115] border-[#2A2D35]'
+                    }`}
+                >
+                  <div className="flex-grow min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-gray-300 truncate">
+                        {conn.url && conn.url.length > 0 ? conn.url : `${conn.ip || 'unknown'}:${conn.port || ''}`}
+                      </span>
+                      {isMaster && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/20 text-[var(--primary)] border border-[var(--primary)]/30">
+                          Master
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm text-gray-500">{conn.username}</span>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => handleSetMaster(conn)}
+                      title="Set as master for sync"
+                      className={`p-2 rounded-lg transition-colors ${isMaster
+                          ? 'text-yellow-400'
+                          : 'text-gray-500 hover:text-yellow-400 hover:bg-white/5'
+                        }`}
+                    >
+                      <Star className="w-5 h-5" fill={isMaster ? 'currentColor' : 'none'} />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(idx)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <Edit2 className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleTest(conn)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-[var(--primary)] hover:bg-white/5 transition-colors"
+                    >
+                      <TestTube className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(idx)}
+                      className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-white/5 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Auto-Sync Configuration */}
+      <div className="adguard-card mb-8">
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <Clock className="w-5 h-5" />
+          Automatic Sync
+        </h2>
+
+        {/* Beta Warning */}
+        <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-2">
+          <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-yellow-500 font-medium text-sm">BETA Feature</p>
+            <p className="text-gray-400 text-xs mt-1">This is a new feature currently in beta testing.</p>
+          </div>
+        </div>
+
+        <p className="text-gray-500 text-sm mb-4">
+          Configure automatic synchronization from the master server to all replicas.
+        </p>
+
+        <label className="flex items-center gap-3 mb-6 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoSyncConfig?.enabled || false}
+            onChange={(e) => handleAutoSyncUpdate({ enabled: e.target.checked })}
+            className="w-5 h-5 rounded border-[#2A2D35] bg-[#0F1115] text-[var(--primary)]"
+          />
+          <span className="text-white font-medium">Enable Automatic Sync</span>
+        </label>
 
         {autoSyncConfig?.enabled && (
           <div className="space-y-6">
             <div>
-              <label className="block text-primary font-semibold mb-2">Sync Interval</label>
+              <label className="block text-xs font-medium text-gray-500 mb-2 uppercase tracking-wider">Sync Interval</label>
               <select
                 value={autoSyncConfig.interval}
                 onChange={(e) => handleAutoSyncUpdate({ interval: e.target.value as SyncInterval })}
-                className="w-full px-4 py-3 rounded-lg border-2 border-neon focus:outline-none bg-gray-900 text-primary"
+                className="w-full md:w-64"
               >
                 {intervalOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -488,117 +553,77 @@ export default function Settings() {
             </div>
 
             <div>
-              <label className="block text-primary font-semibold mb-2">Categories to Sync</label>
-              <div className="space-y-2">
+              <label className="block text-xs font-medium text-gray-500 mb-3 uppercase tracking-wider">Categories to Sync</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {categoryOptions.map(option => (
-                  <label key={option.value} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800 p-2 rounded">
+                  <label key={option.value} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors">
                     <input
                       type="checkbox"
                       checked={autoSyncConfig.categories.includes(option.value)}
                       onChange={() => toggleCategory(option.value)}
-                      className="w-4 h-4"
+                      className="w-4 h-4 rounded border-[#2A2D35] bg-[#0F1115] text-[var(--primary)]"
                     />
-                    <span className="text-primary">{option.label}</span>
+                    <span className="text-gray-300 text-sm">{option.label}</span>
                   </label>
                 ))}
               </div>
             </div>
 
-            <div className="border-t border-gray-700 pt-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400">Last Sync:</span>
-                  <span className="ml-2 text-primary font-semibold">{formatTime(lastSyncTime)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-400">Next Sync:</span>
-                  <span className="ml-2 text-primary font-semibold">
-                    {autoSyncConfig.interval === 'disabled' ? 'N/A' : formatTime(nextSyncTime)}
-                  </span>
-                </div>
+            <div className="grid grid-cols-2 gap-4 p-4 rounded-lg bg-[#0F1115] border border-[#2A2D35]">
+              <div>
+                <span className="text-xs text-gray-500 uppercase tracking-wider">Last Sync</span>
+                <p className="text-[var(--primary)] font-semibold">{formatTime(lastSyncTime)}</p>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500 uppercase tracking-wider">Next Sync</span>
+                <p className="text-[var(--primary)] font-semibold">
+                  {autoSyncConfig.interval === 'disabled' ? 'N/A' : formatTime(nextSyncTime)}
+                </p>
               </div>
             </div>
 
-            {/* Pause/Resume Control */}
-            {autoSyncConfig?.enabled && autoSyncConfig.interval !== 'disabled' && (
-              <div className="border-t border-gray-700 pt-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-primary font-semibold mb-1">Scheduler Control</p>
-                    <p className="text-gray-400 text-sm">
-                      {isPaused 
-                        ? 'Auto-sync is paused. Resume to continue scheduled syncs.'
-                        : 'Auto-sync is active. Pause to temporarily stop scheduled syncs.'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handlePauseResume}
-                    className={`px-6 py-3 rounded-lg font-semibold transition-all ml-4 ${
-                      isPaused
-                        ? 'bg-primary text-black hover:bg-green-400 hover:shadow-lg hover:shadow-primary/50'
-                        : 'bg-yellow-600 text-white hover:bg-yellow-500 hover:shadow-lg'
-                    }`}
-                  >
-                    {isPaused ? (
-                      <>
-                        <span className="mr-2">▶</span>
-                        Resume
-                      </>
-                    ) : (
-                      <>
-                        <span className="mr-2">⏸</span>
-                        Pause
-                      </>
-                    )}
-                  </button>
+            {autoSyncConfig.interval !== 'disabled' && (
+              <div className="flex items-center justify-between p-4 rounded-lg bg-[#0F1115] border border-[#2A2D35]">
+                <div>
+                  <p className="text-white font-medium">Scheduler Control</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    {isPaused ? 'Auto-sync is paused.' : 'Auto-sync is active.'}
+                  </p>
                 </div>
-                
-                {isPaused && (
-                  <div className="mt-3 p-3 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
-                    <p className="text-yellow-400 text-sm flex items-center">
-                      <span className="mr-2">⚠️</span>
-                      Scheduler is paused - no automatic syncs will occur until resumed
-                    </p>
-                  </div>
-                )}
+                <button
+                  onClick={handlePauseResume}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${isPaused
+                      ? 'bg-[var(--primary)] text-black hover:bg-[var(--primary-dark)]'
+                      : 'bg-yellow-600 text-white hover:bg-yellow-500'
+                    }`}
+                >
+                  {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                  {isPaused ? 'Resume' : 'Pause'}
+                </button>
               </div>
             )}
           </div>
         )}
-
-        {!autoSyncConfig?.enabled && (
-          <p className="text-gray-500 text-sm italic">
-            Enable automatic sync to synchronize your master server settings to all replicas on a schedule.
-          </p>
-        )}
       </div>
 
-      <div className="mt-10 adguard-card">
-        <h2 className="font-semibold mb-4 card-title">Theme</h2>
-        <div className="flex justify-center gap-4">
-          <button
-            onClick={() => setTheme('green')}
-            className={`px-4 py-2 font-bold rounded-lg border transition-all duration-300
-              ${theme === 'green' ? 'shadow-neon border-neon text-primary' : 'border-gray-600 text-gray-400'}`}
-          >
-            Green
-          </button>
-          <button
-            onClick={() => setTheme('purple')}
-            className={`px-4 py-2 font-bold rounded-lg border transition-all duration-300
-              ${theme === 'purple' ? 'shadow-neon border-neon text-primary' : 'border-gray-600 text-gray-400'}`}
-          >
-            Purple
-          </button>
-          <button
-            onClick={() => setTheme('orange')}
-            className={`px-4 py-2 font-bold rounded-lg border transition-all duration-300
-              ${theme === 'orange' ? 'shadow-neon border-neon text-primary' : 'border-gray-600 text-gray-400'}`}
-          >
-            Orange
-          </button>
+      {/* Theme Selection */}
+      <div className="adguard-card">
+        <h2 className="text-lg font-semibold text-white mb-4">Theme</h2>
+        <div className="flex gap-3">
+          {(['green', 'purple', 'orange'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTheme(t)}
+              className={`px-6 py-3 rounded-lg font-medium capitalize transition-all ${theme === t
+                  ? 'text-[var(--primary)] bg-[var(--primary)]/10 border border-[var(--primary)]/30 shadow-[0_0_15px_var(--primary-light)]'
+                  : 'text-gray-400 border border-[#2A2D35] hover:border-gray-500'
+                }`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
