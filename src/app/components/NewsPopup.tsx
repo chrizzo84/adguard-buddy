@@ -21,19 +21,19 @@ export default function NewsPopup({
   const safeHtml = DOMPurify.sanitize(rawHtml);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-[#0b1220] max-w-3xl w-full mx-4 rounded-xl shadow-xl overflow-hidden max-h-[80vh]">
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-white/5 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-[#181A20] border border-[#2A2D35] max-w-3xl w-full mx-4 rounded-xl shadow-2xl overflow-hidden max-h-[80vh]">
+        <div className="flex items-center justify-between p-4 border-b border-[#2A2D35] relative">
           <div className="text-sm text-gray-600 dark:text-gray-300">What&apos;s New</div>
           <div className="flex gap-2 items-center">
             <button
-              className={`px-3 py-1 rounded text-sm ${mode === 'raw' ? 'bg-gray-200 dark:bg-white/5' : 'hover:bg-gray-100 dark:hover:bg-white/3'}`}
+              className={`px-3 py-1 rounded text-sm transition-colors ${mode === 'raw' ? 'bg-[#2A2D35] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2A2D35]'}`}
               onClick={() => setMode('raw')}
             >
               Raw
             </button>
             <button
-              className={`px-3 py-1 rounded text-sm ${mode === 'preview' ? 'bg-gray-200 dark:bg-white/5' : 'hover:bg-gray-100 dark:hover:bg-white/3'}`}
+              className={`px-3 py-1 rounded text-sm transition-colors ${mode === 'preview' ? 'bg-[#2A2D35] text-white' : 'text-gray-400 hover:text-white hover:bg-[#2A2D35]'}`}
               onClick={() => setMode('preview')}
             >
               Preview
@@ -60,7 +60,7 @@ export default function NewsPopup({
           )}
         </div>
 
-  {/* footer removed - single top-right close button is used */}
+        {/* footer removed - single top-right close button is used */}
       </div>
     </div>
   );

@@ -378,180 +378,187 @@ export default function SyncStatusPage() {
   });
 
   // Component to display differences between master and target for a category
-  const DiffDisplay = ({ category, masterData, targetData }: {
-    category: string;
-    masterData: SettingsValue;
-    targetData: SettingsValue;
-  }) => {
-    // For filtering category - show filter-specific differences
-    if (category === 'filtering' && masterData && targetData && typeof masterData === 'object' && typeof targetData === 'object') {
-      const m = masterData as Record<string, SettingsValue>;
-      const t = targetData as Record<string, SettingsValue>;
+  const DiffDisplay = ({ category, masterData, targetData }: { category: string, masterData: SettingsValue, targetData: SettingsValue }) => {
+    if (!masterData && !targetData) return null;
 
-      const masterFilters = [...((m.filters as FilterListItem[]) || []), ...((m.whitelist_filters as FilterListItem[]) || [])];
-      const targetFilters = [...((t.filters as FilterListItem[]) || []), ...((t.whitelist_filters as FilterListItem[]) || [])];
+    // Helper to identify differences
+    type DiffItem = { name: string, masterVal: string, targetVal: string, type: 'missing' | 'extra' | 'changed' | 'setting' };
+    const diffs: DiffItem[] = [];
 
-      const masterMap = new Map(masterFilters.map(f => [f.url, f]));
-      const targetMap = new Map(targetFilters.map(f => [f.url, f]));
+    // For filtering category - show ALL differences
+    if (category === 'filtering') {
+      const masterSettings = masterData as Record<string, SettingsValue>;
+      const targetSettings = targetData as Record<string, SettingsValue>;
 
-      type DiffItem = { name: string; masterVal: string; targetVal: string; type: 'setting' | 'missing' | 'extra' | 'changed' };
-      const diffs: DiffItem[] = [];
-
-      // Compare settings
-      if (m.enabled !== t.enabled) {
-        diffs.push({ name: 'Filtering Enabled', masterVal: m.enabled ? '✓ Enabled' : '○ Disabled', targetVal: t.enabled ? '✓ Enabled' : '○ Disabled', type: 'setting' });
+      // Comparators for settings
+      if (masterSettings.enabled !== targetSettings.enabled) {
+        diffs.push({
+          name: 'Filtering Enabled',
+          masterVal: masterSettings.enabled ? '✓ Enabled' : '○ Disabled',
+          targetVal: targetSettings.enabled ? '✓ Enabled' : '○ Disabled',
+          type: 'setting'
+        });
       }
-      if (m.interval !== t.interval) {
-        diffs.push({ name: 'Update Interval', masterVal: `${m.interval || 0} hours`, targetVal: `${t.interval || 0} hours`, type: 'setting' });
+
+      if (masterSettings.interval !== targetSettings.interval) {
+        diffs.push({
+          name: 'Update Interval',
+          masterVal: `${masterSettings.interval}h`,
+          targetVal: `${targetSettings.interval}h`,
+          type: 'setting'
+        });
       }
-      const masterRules = Array.isArray(m.user_rules) ? m.user_rules : [];
-      const targetRules = Array.isArray(t.user_rules) ? t.user_rules : [];
+
+      const masterRules = Array.isArray(masterSettings.user_rules) ? masterSettings.user_rules : [];
+      const targetRules = Array.isArray(targetSettings.user_rules) ? targetSettings.user_rules : [];
       if (JSON.stringify(masterRules) !== JSON.stringify(targetRules)) {
-        diffs.push({ name: 'User Rules', masterVal: `${masterRules.length} rules`, targetVal: `${targetRules.length} rules`, type: 'setting' });
+        diffs.push({
+          name: 'User Rules',
+          masterVal: `${masterRules.length} rules`,
+          targetVal: `${targetRules.length} rules`,
+          type: 'setting'
+        });
       }
 
-      // Compare filters
-      masterFilters.forEach(mf => {
-        const tf = targetMap.get(mf.url);
-        if (!tf) {
-          diffs.push({ name: mf.name || 'Unknown', masterVal: `${mf.enabled ? '✓ Enabled' : '○ Disabled'} (${mf.rules_count?.toLocaleString() || 0} rules)`, targetVal: '❌ Missing', type: 'missing' });
-        } else if (mf.enabled !== tf.enabled) {
-          diffs.push({ name: mf.name || 'Unknown', masterVal: mf.enabled ? '✓ Enabled' : '○ Disabled', targetVal: tf.enabled ? '✓ Enabled' : '○ Disabled', type: 'changed' });
-        } else if (mf.rules_count !== tf.rules_count) {
-          diffs.push({ name: mf.name || 'Unknown', masterVal: `${mf.rules_count?.toLocaleString() || 0} rules`, targetVal: `${tf.rules_count?.toLocaleString() || 0} rules`, type: 'changed' });
-        }
-      });
-      targetFilters.forEach(tf => {
-        if (!masterMap.has(tf.url)) {
-          diffs.push({ name: tf.name || 'Unknown', masterVal: '❌ Not present', targetVal: `${tf.enabled ? '✓ Enabled' : '○ Disabled'} (${tf.rules_count?.toLocaleString() || 0} rules)`, type: 'extra' });
-        }
-      });
+      // Filter Lists Comparison
+      const getFilters = (data: Record<string, SettingsValue>, key: string) => {
+        return (Array.isArray(data[key]) ? data[key] as FilterListItem[] : []);
+      };
 
-      if (diffs.length === 0) return <div className="p-3 text-gray-500 text-sm">No specific differences found</div>;
+      const compareLists = (listName: string, mList: FilterListItem[], tList: FilterListItem[]) => {
+        const tMap = new Map(tList.map(f => [f.url, f]));
+        const mMap = new Map(mList.map(f => [f.url, f]));
 
-      return (
-        <div className="p-3 space-y-2">
-          {diffs.map((d, i) => (
-            <div key={i} className={`p-3 rounded-lg border ${d.type === 'setting' ? 'border-blue-500/30 bg-blue-500/5' :
-              d.type === 'missing' ? 'border-yellow-500/30 bg-yellow-500/5' :
-                d.type === 'extra' ? 'border-red-500/30 bg-red-500/5' : 'border-orange-500/30 bg-orange-500/5'
-              }`}>
-              <div className="flex items-center gap-2 mb-2">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <span className="text-white text-sm font-medium">{d.name}</span>
-                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${d.type === 'setting' ? 'bg-blue-500/20 text-blue-400' :
-                  d.type === 'missing' ? 'bg-yellow-500/20 text-yellow-400' :
-                    d.type === 'extra' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'
-                  }`}>{d.type.toUpperCase()}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded bg-[#0F1115]"><span className="text-gray-500">Master:</span> <span className="text-[var(--primary)]">{d.masterVal}</span></div>
-                <div className="p-2 rounded bg-[#181A20]"><span className="text-gray-500">Target:</span> <span className={d.type === 'missing' ? 'text-yellow-400' : d.type === 'extra' ? 'text-red-400' : 'text-orange-400'}>{d.targetVal}</span></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
+        mList.forEach(m => {
+          const t = tMap.get(m.url);
+          if (!t) {
+            diffs.push({
+              name: m.name,
+              masterVal: 'Present',
+              targetVal: 'Missing',
+              type: 'missing'
+            });
+          } else {
+            if (m.enabled !== t.enabled) {
+              diffs.push({
+                name: m.name,
+                masterVal: m.enabled ? '✓ Enabled' : '○ Disabled',
+                targetVal: t.enabled ? '✓ Enabled' : '○ Disabled',
+                type: 'changed'
+              });
+            }
+            if (m.rules_count !== t.rules_count) {
+              diffs.push({
+                name: m.name,
+                masterVal: `${m.rules_count} rules`,
+                targetVal: `${t.rules_count} rules`,
+                type: 'changed'
+              });
+            }
+          }
+        });
+
+        tList.forEach(t => {
+          if (!mMap.has(t.url)) {
+            diffs.push({
+              name: t.name,
+              masterVal: 'Missing',
+              targetVal: 'Present',
+              type: 'extra'
+            });
+          }
+        });
+      };
+
+      compareLists('Blocklists', getFilters(masterSettings, 'filters'), getFilters(targetSettings, 'filters'));
+      compareLists('Whitelists', getFilters(masterSettings, 'whitelist_filters'), getFilters(targetSettings, 'whitelist_filters'));
     }
 
-    // For rewrites - show individual rewrites that differ
-    if (category === 'rewrites') {
-      const masterRewrites = (Array.isArray(masterData) ? masterData : []) as { domain?: string; answer?: string }[];
-      const targetRewrites = (Array.isArray(targetData) ? targetData : []) as { domain?: string; answer?: string }[];
-      const masterSet = new Set(masterRewrites.map(r => `${r.domain}→${r.answer}`));
-      const targetSet = new Set(targetRewrites.map(r => `${r.domain}→${r.answer}`));
-      const onlyInMaster = masterRewrites.filter(r => !targetSet.has(`${r.domain}→${r.answer}`));
-      const onlyInTarget = targetRewrites.filter(r => !masterSet.has(`${r.domain}→${r.answer}`));
+    // Rewrites Comparison
+    else if (category === 'rewrites') {
+      const mRewrites = (Array.isArray(masterData) ? masterData : []) as { domain: string, answer: string }[];
+      const tRewrites = (Array.isArray(targetData) ? targetData : []) as { domain: string, answer: string }[];
+      const mSet = new Set(mRewrites.map(r => `${r.domain}→${r.answer}`));
+      const tSet = new Set(tRewrites.map(r => `${r.domain}→${r.answer}`));
 
-      return (
-        <div className="p-3 space-y-2">
-          {onlyInMaster.length > 0 && (
-            <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
-              <p className="text-yellow-400 text-sm font-medium mb-2">⚠ Missing in Target ({onlyInMaster.length}):</p>
-              {onlyInMaster.map((r, i) => <div key={i} className="text-xs p-1"><span className="text-gray-300">{r.domain}</span> → <span className="text-[var(--primary)]">{r.answer}</span></div>)}
-            </div>
-          )}
-          {onlyInTarget.length > 0 && (
-            <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
-              <p className="text-red-400 text-sm font-medium mb-2">✗ Extra in Target ({onlyInTarget.length}):</p>
-              {onlyInTarget.map((r, i) => <div key={i} className="text-xs p-1"><span className="text-gray-300">{r.domain}</span> → <span className="text-red-400">{r.answer}</span></div>)}
-            </div>
-          )}
-        </div>
-      );
+      mRewrites.forEach(r => {
+        if (!tSet.has(`${r.domain}→${r.answer}`)) {
+          diffs.push({ name: r.domain, masterVal: r.answer, targetVal: 'Missing', type: 'missing' });
+        }
+      });
+      tRewrites.forEach(r => {
+        if (!mSet.has(`${r.domain}→${r.answer}`)) {
+          diffs.push({ name: r.domain, masterVal: 'Missing', targetVal: r.answer, type: 'extra' });
+        }
+      });
     }
 
-    // For blockedServices
-    if (category === 'blockedServices') {
+    // Blocked Services Comparison
+    else if (category === 'blockedServices') {
+      // Handle both array format and object format { ids: [...] }
       const getIds = (d: SettingsValue): string[] => {
         if (Array.isArray(d)) return d as string[];
         if (d && typeof d === 'object' && 'ids' in (d as Record<string, unknown>)) return ((d as Record<string, unknown>).ids as string[]) || [];
         return [];
       };
-      const masterIds = new Set(getIds(masterData));
-      const targetIds = new Set(getIds(targetData));
-      const onlyInMaster = [...masterIds].filter(s => !targetIds.has(s));
-      const onlyInTarget = [...targetIds].filter(s => !masterIds.has(s));
 
-      return (
-        <div className="p-3 space-y-2">
-          {onlyInMaster.length > 0 && (
-            <div className="p-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
-              <p className="text-yellow-400 text-sm font-medium mb-2">⚠ Not blocked in Target:</p>
-              <div className="flex flex-wrap gap-1">{onlyInMaster.map(s => <span key={s} className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 text-xs">{s}</span>)}</div>
-            </div>
-          )}
-          {onlyInTarget.length > 0 && (
-            <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5">
-              <p className="text-red-400 text-sm font-medium mb-2">✗ Extra blocked in Target:</p>
-              <div className="flex flex-wrap gap-1">{onlyInTarget.map(s => <span key={s} className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">{s}</span>)}</div>
-            </div>
-          )}
-        </div>
-      );
+      const mIds = new Set(getIds(masterData));
+      const tIds = new Set(getIds(targetData));
+
+      mIds.forEach(id => {
+        if (!tIds.has(id)) diffs.push({ name: id, masterVal: 'Blocked', targetVal: 'Allowed', type: 'missing' });
+      });
+      tIds.forEach(id => {
+        if (!mIds.has(id)) diffs.push({ name: id, masterVal: 'Allowed', targetVal: 'Blocked', type: 'extra' });
+      });
     }
 
-    // Generic object comparison for other categories
-    if (masterData && targetData && typeof masterData === 'object' && typeof targetData === 'object' && !Array.isArray(masterData) && !Array.isArray(targetData)) {
-      const m = masterData as Record<string, SettingsValue>;
-      const t = targetData as Record<string, SettingsValue>;
-      const diffs: { key: string; masterVal: string; targetVal: string }[] = [];
+    // Generic Settings Comparison (DNS, Stats, QueryLog, AccessList)
+    else {
+      if (typeof masterData === 'object' && masterData !== null && typeof targetData === 'object' && targetData !== null && !Array.isArray(masterData)) {
+        const m = masterData as Record<string, SettingsValue>;
+        const t = targetData as Record<string, SettingsValue>;
 
-      for (const key of Object.keys(m)) {
-        if (!areSettingsEqual(m[key], t[key])) {
-          diffs.push({ key, masterVal: typeof m[key] === 'object' ? JSON.stringify(m[key]) : String(m[key]), targetVal: t[key] !== undefined ? (typeof t[key] === 'object' ? JSON.stringify(t[key]) : String(t[key])) : '(missing)' });
-        }
+        // Check only keys present in master
+        Object.keys(m).forEach(key => {
+          if (['id', 'last_updated', 'default_local_ptr_upstreams'].includes(key)) return;
+          if (!areSettingsEqual(m[key], t[key])) {
+            diffs.push({
+              name: key,
+              masterVal: JSON.stringify(m[key]),
+              targetVal: t[key] === undefined ? 'Missing' : JSON.stringify(t[key]),
+              type: 'setting'
+            });
+          }
+        });
       }
-      for (const key of Object.keys(t)) {
-        if (!(key in m)) {
-          diffs.push({ key, masterVal: '(missing)', targetVal: typeof t[key] === 'object' ? JSON.stringify(t[key]) : String(t[key]) });
-        }
-      }
-
-      if (diffs.length === 0) return <div className="p-3 text-gray-500 text-sm">No specific differences found</div>;
-
-      return (
-        <div className="p-3 space-y-2">
-          {diffs.map((d, i) => (
-            <div key={i} className="p-3 rounded-lg border border-orange-500/30 bg-orange-500/5">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-white text-sm font-medium">{d.key}</span>
-                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-500/20 text-orange-400">DIFF</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2 rounded bg-[#0F1115] overflow-hidden"><span className="text-gray-500">Master:</span> <span className="text-[var(--primary)] break-all">{d.masterVal.length > 60 ? d.masterVal.substring(0, 60) + '...' : d.masterVal}</span></div>
-                <div className="p-2 rounded bg-[#181A20] overflow-hidden"><span className="text-gray-500">Target:</span> <span className="text-orange-400 break-all">{d.targetVal.length > 60 ? d.targetVal.substring(0, 60) + '...' : d.targetVal}</span></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      );
     }
 
-    // Fallback for arrays or primitives
+    if (diffs.length === 0) return null;
+
     return (
-      <div className="p-3 text-gray-500 text-sm">
-        <p>Cannot display detailed comparison for this data type.</p>
+      <div className="p-3 space-y-2">
+        {diffs.map((diff, idx) => (
+          <div key={idx} className={`p-3 rounded-lg border ${diff.type === 'setting' ? 'border-blue-500/30 bg-blue-500/5' :
+            diff.type === 'missing' ? 'border-yellow-500/30 bg-yellow-500/5' :
+              diff.type === 'extra' ? 'border-red-500/30 bg-red-500/5' :
+                'border-orange-500/30 bg-orange-500/5'
+            }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-white text-sm font-medium">{diff.name}</span>
+              <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${diff.type === 'setting' ? 'bg-blue-500/20 text-blue-400' :
+                diff.type === 'missing' ? 'bg-yellow-500/20 text-yellow-400' :
+                  diff.type === 'extra' ? 'bg-red-500/20 text-red-400' :
+                    'bg-orange-500/20 text-orange-400'
+                }`}>{diff.type.toUpperCase()}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2 rounded bg-[#0F1115]"><span className="text-gray-500">Master:</span> <span className="text-[var(--primary)] block truncate">{diff.masterVal}</span></div>
+              <div className="p-2 rounded bg-[#181A20]"><span className="text-gray-500">Target:</span> <span className={`${diff.type === 'missing' ? 'text-yellow-400' : diff.type === 'extra' ? 'text-red-400' : 'text-orange-400'
+                } block truncate`}>{diff.targetVal}</span></div>
+            </div>
+          </div>
+        ))}
       </div>
     );
   };

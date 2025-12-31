@@ -21,10 +21,6 @@ type TopArrayEntry = { [key: string]: number };
 type StatsData = {
     avg_processing_time: number;
     dns_queries: number;
-    num_dns_queries?: number;
-    num_blocked_filtering?: number;
-    num_replaced_safebrowsing?: number;
-    num_replaced_parental?: number;
     top_queried_domains: TopArrayEntry[];
     top_blocked_domains: TopArrayEntry[];
     top_clients: TopArrayEntry[];
@@ -88,10 +84,6 @@ function aggregateStats(statsList: StatsData[]): StatsData {
     const combined: StatsData = {
         avg_processing_time: 0,
         dns_queries: 0,
-        num_dns_queries: 0,
-        num_blocked_filtering: 0,
-        num_replaced_safebrowsing: 0,
-        num_replaced_parental: 0,
         top_queried_domains: [],
         top_blocked_domains: [],
         top_clients: [],
@@ -99,18 +91,12 @@ function aggregateStats(statsList: StatsData[]): StatsData {
         top_upstreams_responses: [],
     };
 
-    const totalDnsQueries = statsList.reduce((sum, stats) => sum + (stats.dns_queries || stats.num_dns_queries || 0), 0);
+    const totalDnsQueries = statsList.reduce((sum, stats) => sum + (stats.dns_queries || 0), 0);
     combined.dns_queries = totalDnsQueries;
-    combined.num_dns_queries = totalDnsQueries;
-
-    // Sum up blocking stats
-    combined.num_blocked_filtering = statsList.reduce((sum, stats) => sum + (stats.num_blocked_filtering || 0), 0);
-    combined.num_replaced_safebrowsing = statsList.reduce((sum, stats) => sum + (stats.num_replaced_safebrowsing || 0), 0);
-    combined.num_replaced_parental = statsList.reduce((sum, stats) => sum + (stats.num_replaced_parental || 0), 0);
 
     // Weighted average for processing time
     if (totalDnsQueries > 0) {
-        const totalProcessingTime = statsList.reduce((sum, stats) => sum + (stats.avg_processing_time * (stats.dns_queries || stats.num_dns_queries || 0)), 0);
+        const totalProcessingTime = statsList.reduce((sum, stats) => sum + (stats.avg_processing_time * (stats.dns_queries || 0)), 0);
         combined.avg_processing_time = totalProcessingTime / totalDnsQueries;
     }
 
