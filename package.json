@@ -1,6 +1,6 @@
 {
   "name": "adguard-buddy",
-  "version": "0.1.20251231",
+  "version": "0.1.20260108",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
