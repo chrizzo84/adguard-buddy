@@ -1,5 +1,35 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**January 8, 2026 - v0.1.20260108**
+
+## 📊 Statistics Improvements
+
+**Real-time hourly data and expandable threat details!**
+
+### 📈 Real Hourly Statistics:
+- **Authentic Data** - "Queries per Hour" chart now uses real `dns_queries[]` array from AdGuard API instead of simulated data
+- **Accurate Blocking Stats** - Combined mode now correctly aggregates `num_blocked_filtering`, `num_replaced_safebrowsing`, and `num_replaced_parental` across all servers
+- **7-Day History** - Full 168-hour data from AdGuard (last 7 days in hourly resolution)
+
+### 🛡️ Expandable Threats Card:
+- **On-Demand Loading** - Click "Show domains" to fetch threat details only when needed
+- **Loading Indicator** - Spinner shows while fetching threat domains
+- **Domain Details** - See actual blocked domains with type badges:
+  - 🟠 **Safebrowsing** - Malware/Phishing threats
+  - 🟣 **Parental** - Parental control blocks
+- **Threat Breakdown** - Summary shows Safebrowsing vs Parental counts
+- **Collapsible** - Click "Hide domains" to close the detail view
+
+### ⚡ Performance:
+- **Parallel API Calls** - Threat domain fetching uses `Promise.all` for faster loading
+- **Optimized Limits** - Reduced query limits for snappier response times
+
+### 📋 Files Modified:
+- `src/app/api/statistics/combined/route.ts` - Added hourly array aggregation and blocking counts
+- `src/app/statistics/page.tsx` - Real hourly data + expandable threats UI
+
+---
+
 **December 31, 2025 - v0.1.20251231**
 
 ## 🎨 COMPLETE REDESIGN
