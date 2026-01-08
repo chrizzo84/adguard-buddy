@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import CryptoJS from "crypto-js";
-import { RefreshCw, Server, Users, Activity, Shield, AlertTriangle, Clock, Globe, Monitor, Smartphone, Tv, Laptop, HardDrive } from "lucide-react";
+import { RefreshCw, Server, Users, Activity, Shield, AlertTriangle, Clock, Globe, Monitor, Smartphone, Tv, Laptop, HardDrive, ChevronDown, Loader2 } from "lucide-react";
 
 // Types
 type Connection = {
@@ -22,6 +22,13 @@ type StatsData = {
   num_blocked_filtering?: number;
   num_replaced_safebrowsing?: number;
   num_replaced_parental?: number;
+  // Hourly data arrays (from AdGuard API)
+  dns_queries_arr?: number[];
+  blocked_filtering?: number[]; // Raw API field name
+  blocked_filtering_arr?: number[];
+  replaced_safebrowsing?: number[];
+  replaced_parental?: number[];
+  time_units?: string;
   top_queried_domains: TopArrayEntry[];
   top_blocked_domains: TopArrayEntry[];
   top_clients: TopArrayEntry[];
@@ -192,6 +199,9 @@ export default function StatisticsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('single');
+  const [threatDomains, setThreatDomains] = useState<{ domain: string; type: 'safebrowsing' | 'parental'; time: string }[]>([]);
+  const [threatsExpanded, setThreatsExpanded] = useState(false);
+  const [threatsLoading, setThreatsLoading] = useState(false);
   const encryptionKey = process.env.NEXT_PUBLIC_ADGUARD_BUDDY_ENCRYPTION_KEY || "adguard-buddy-key";
 
   useEffect(() => {
@@ -252,11 +262,103 @@ export default function StatisticsPage() {
     }
   }, [selectedConnection, encryptionKey, viewMode]);
 
-  useEffect(() => {
-    if (viewMode === 'single' ? selectedConnection : true) {
-      fetchStats();
+  // Fetch threat domains from query log (optimized with parallel calls)
+  const fetchThreatDomains = useCallback(async () => {
+    if (viewMode === 'single' && !selectedConnection) return;
+
+    setThreatsLoading(true);
+
+    const fetchForStatus = async (conn: Connection, status: 'blocked_safebrowsing' | 'blocked_parental'): Promise<{ domain: string; type: 'safebrowsing' | 'parental'; time: string }[]> => {
+      let decrypted = "";
+      try {
+        decrypted = CryptoJS.AES.decrypt(conn.password, encryptionKey).toString(CryptoJS.enc.Utf8);
+      } catch { /* ignore */ }
+
+      try {
+        const response = await fetch('/api/query-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...conn,
+            password: decrypted,
+            limit: 20, // Reduced for faster response
+            offset: 0,
+            response_status: status,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const entries = data.data || [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return entries.map((entry: any) => ({
+            domain: entry.question?.name || entry.domain || 'Unknown',
+            type: status === 'blocked_safebrowsing' ? 'safebrowsing' : 'parental' as const,
+            time: entry.time || new Date().toISOString(),
+          }));
+        }
+      } catch { /* ignore individual failures */ }
+      return [];
+    };
+
+    try {
+      // Build array of all fetch promises
+      const fetchPromises: Promise<{ domain: string; type: 'safebrowsing' | 'parental'; time: string }[]>[] = [];
+
+      if (viewMode === 'combined') {
+        // Parallel fetch from all connections
+        for (const conn of connections) {
+          fetchPromises.push(fetchForStatus(conn, 'blocked_safebrowsing'));
+          fetchPromises.push(fetchForStatus(conn, 'blocked_parental'));
+        }
+      } else if (selectedConnection) {
+        fetchPromises.push(fetchForStatus(selectedConnection, 'blocked_safebrowsing'));
+        fetchPromises.push(fetchForStatus(selectedConnection, 'blocked_parental'));
+      }
+
+      // Execute all fetches in parallel
+      const results = await Promise.all(fetchPromises);
+      const threats = results.flat();
+
+      // Sort by time (newest first) and dedupe by domain
+      const uniqueDomains = new Map<string, typeof threats[0]>();
+      threats.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+      threats.forEach(t => {
+        if (!uniqueDomains.has(t.domain)) {
+          uniqueDomains.set(t.domain, t);
+        }
+      });
+
+      setThreatDomains(Array.from(uniqueDomains.values()).slice(0, 10));
+    } catch (err) {
+      console.error('Failed to fetch threat domains:', err);
+    } finally {
+      setThreatsLoading(false);
     }
-  }, [selectedConnection, viewMode, fetchStats]);
+  }, [selectedConnection, connections, encryptionKey, viewMode]);
+
+  // Handler for clicking on Threats card to expand/collapse
+  const handleThreatsToggle = useCallback(() => {
+    if (!threatsExpanded) {
+      // Expanding - fetch domains if we don't have them yet
+      setThreatsExpanded(true);
+      if (threatDomains.length === 0) {
+        fetchThreatDomains();
+      }
+    } else {
+      setThreatsExpanded(false);
+    }
+  }, [threatsExpanded, threatDomains.length, fetchThreatDomains]);
+
+  // Fetch only stats on mount (threats are loaded on-demand)
+  useEffect(() => {
+    if (viewMode === 'single' && !selectedConnection) return;
+    fetchStats();
+    // Reset expansion when changing server/mode
+    setThreatsExpanded(false);
+    setThreatDomains([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConnection, viewMode, connections]);
 
   // Calculate derived data
   const totalQueries = stats?.num_dns_queries || stats?.dns_queries || 0;
@@ -264,9 +366,19 @@ export default function StatisticsPage() {
   const threatsCount = (stats?.num_replaced_safebrowsing || 0) + (stats?.num_replaced_parental || 0);
   const avgTime = stats?.avg_processing_time || 0;
 
-  // Mock hourly data (since API doesn't provide this, we generate placeholder)
+  // Hourly data from API (use array data, fallback to simulated if not available)
   const hourlyData = useMemo(() => {
     if (!stats) return Array(24).fill(0);
+
+    // Try to get array data from API - check both field names
+    const dnsArr = stats.dns_queries_arr || (Array.isArray((stats as Record<string, unknown>).dns_queries) ? (stats as Record<string, unknown>).dns_queries as number[] : null);
+
+    if (dnsArr && dnsArr.length > 0) {
+      // Return last 24 hours of real data
+      return dnsArr.slice(-24);
+    }
+
+    // Fallback to simulated data if array not available
     const base = totalQueries / 24;
     return Array.from({ length: 24 }, () => Math.floor(base * (0.5 + Math.random())));
   }, [stats, totalQueries]);
@@ -382,7 +494,7 @@ export default function StatisticsPage() {
               </div>
             </div>
 
-            {/* Threats */}
+            {/* Threats - Expandable Card */}
             <div className="adguard-card">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-500">Threats</span>
@@ -391,6 +503,65 @@ export default function StatisticsPage() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-white font-mono">{threatsCount.toLocaleString()}</div>
+              {threatsCount > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#2A2D35] space-y-1.5">
+                  {(stats?.num_replaced_safebrowsing || 0) > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500 flex items-center gap-1.5">
+                        <Shield className="w-3 h-3 text-orange-400" />
+                        Safebrowsing
+                      </span>
+                      <span className="font-mono text-orange-400">{(stats?.num_replaced_safebrowsing || 0).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {(stats?.num_replaced_parental || 0) > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500 flex items-center gap-1.5">
+                        <Shield className="w-3 h-3 text-purple-400" />
+                        Parental
+                      </span>
+                      <span className="font-mono text-purple-400">{(stats?.num_replaced_parental || 0).toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {/* Expandable Details Button */}
+                  <button
+                    onClick={handleThreatsToggle}
+                    className="w-full mt-2 pt-2 border-t border-[#2A2D35] flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-yellow-400 transition-colors"
+                  >
+                    {threatsLoading ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading domains...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className={`w-3 h-3 transition-transform ${threatsExpanded ? 'rotate-180' : ''}`} />
+                        {threatsExpanded ? 'Hide domains' : 'Show domains'}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Expandable Domain List */}
+                  {threatsExpanded && !threatsLoading && threatDomains.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-[#2A2D35] space-y-2 max-h-48 overflow-y-auto">
+                      {threatDomains.map((threat, index) => (
+                        <div key={`${threat.domain}-${index}`} className="flex items-center gap-2 text-xs">
+                          <Shield className={`w-3 h-3 flex-shrink-0 ${threat.type === 'safebrowsing' ? 'text-orange-400' : 'text-purple-400'
+                            }`} />
+                          <span className="text-gray-300 truncate font-mono">{threat.domain}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {threatsExpanded && !threatsLoading && threatDomains.length === 0 && (
+                    <div className="mt-2 pt-2 border-t border-[#2A2D35] text-xs text-gray-500 text-center">
+                      No recent threat domains found
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Processing Time */}
