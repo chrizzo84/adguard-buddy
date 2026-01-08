@@ -21,6 +21,16 @@ type TopArrayEntry = { [key: string]: number };
 type StatsData = {
     avg_processing_time: number;
     dns_queries: number;
+    num_dns_queries?: number;
+    num_blocked_filtering: number;
+    num_replaced_safebrowsing: number;
+    num_replaced_parental: number;
+    // Hourly data arrays (from AdGuard API)
+    dns_queries_arr?: number[];
+    blocked_filtering_arr?: number[];
+    replaced_safebrowsing_arr?: number[];
+    replaced_parental_arr?: number[];
+    time_units?: string;
     top_queried_domains: TopArrayEntry[];
     top_blocked_domains: TopArrayEntry[];
     top_clients: TopArrayEntry[];
@@ -70,9 +80,23 @@ async function fetchStatsForServer(connection: Connection): Promise<StatsData | 
         }
         const data = JSON.parse(r.body || '{}');
         // AdGuard API returns some fields with num_ prefix, we need to align them with our StatsData type
+        // Also, dns_queries can be an array (hourly data) - we need to handle both
+        const dnsQueriesArr = Array.isArray(data.dns_queries) ? data.dns_queries : [];
+        const blockedArr = Array.isArray(data.blocked_filtering) ? data.blocked_filtering : [];
+        const safebrowsingArr = Array.isArray(data.replaced_safebrowsing) ? data.replaced_safebrowsing : [];
+        const parentalArr = Array.isArray(data.replaced_parental) ? data.replaced_parental : [];
+
         return {
             ...data,
             dns_queries: data.num_dns_queries || 0,
+            num_blocked_filtering: data.num_blocked_filtering || 0,
+            num_replaced_safebrowsing: data.num_replaced_safebrowsing || 0,
+            num_replaced_parental: data.num_replaced_parental || 0,
+            dns_queries_arr: dnsQueriesArr,
+            blocked_filtering_arr: blockedArr,
+            replaced_safebrowsing_arr: safebrowsingArr,
+            replaced_parental_arr: parentalArr,
+            time_units: data.time_units || 'hours',
         };
     } catch (error) {
         logger.error(`Error fetching stats from ${connection.ip}: ${error instanceof Error ? error.message : String(error)}`);
@@ -84,6 +108,14 @@ function aggregateStats(statsList: StatsData[]): StatsData {
     const combined: StatsData = {
         avg_processing_time: 0,
         dns_queries: 0,
+        num_blocked_filtering: 0,
+        num_replaced_safebrowsing: 0,
+        num_replaced_parental: 0,
+        dns_queries_arr: [],
+        blocked_filtering_arr: [],
+        replaced_safebrowsing_arr: [],
+        replaced_parental_arr: [],
+        time_units: 'hours',
         top_queried_domains: [],
         top_blocked_domains: [],
         top_clients: [],
@@ -93,6 +125,32 @@ function aggregateStats(statsList: StatsData[]): StatsData {
 
     const totalDnsQueries = statsList.reduce((sum, stats) => sum + (stats.dns_queries || 0), 0);
     combined.dns_queries = totalDnsQueries;
+
+    // Sum up blocking/threat counts
+    combined.num_blocked_filtering = statsList.reduce((sum, stats) => sum + (stats.num_blocked_filtering || 0), 0);
+    combined.num_replaced_safebrowsing = statsList.reduce((sum, stats) => sum + (stats.num_replaced_safebrowsing || 0), 0);
+    combined.num_replaced_parental = statsList.reduce((sum, stats) => sum + (stats.num_replaced_parental || 0), 0);
+
+    // Aggregate hourly arrays by summing values at each index
+    const aggregateHourlyArray = (key: 'dns_queries_arr' | 'blocked_filtering_arr' | 'replaced_safebrowsing_arr' | 'replaced_parental_arr'): number[] => {
+        // Find the max length among all servers
+        const maxLen = Math.max(...statsList.map(s => s[key]?.length || 0), 0);
+        if (maxLen === 0) return [];
+
+        const result: number[] = new Array(maxLen).fill(0);
+        for (const stats of statsList) {
+            const arr = stats[key] || [];
+            for (let i = 0; i < arr.length; i++) {
+                result[i] += arr[i] || 0;
+            }
+        }
+        return result;
+    };
+
+    combined.dns_queries_arr = aggregateHourlyArray('dns_queries_arr');
+    combined.blocked_filtering_arr = aggregateHourlyArray('blocked_filtering_arr');
+    combined.replaced_safebrowsing_arr = aggregateHourlyArray('replaced_safebrowsing_arr');
+    combined.replaced_parental_arr = aggregateHourlyArray('replaced_parental_arr');
 
     // Weighted average for processing time
     if (totalDnsQueries > 0) {
