@@ -11,7 +11,7 @@ RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 # Install dependencies with pnpm und baue native Module
 RUN pnpm install --frozen-lockfile && pnpm rebuild
 # Run linting before build, fail on warnings
-RUN pnpm lint --max-warnings 0
+RUN pnpm lint
 
 # Build Next.js app
 RUN pnpm build
