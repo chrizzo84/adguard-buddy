@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
-    "dompurify": "^3.3.2",
+    "dompurify": "^3.4.0",
     "lucide-react": "^0.540.0",
     "marked": "^5.1.2",
     "next": "16.1.7",
