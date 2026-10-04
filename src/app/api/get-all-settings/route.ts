@@ -4,6 +4,7 @@ import { httpRequest } from "@/lib/httpRequest";
 import { authHeaders, buildBaseUrl } from "@/lib/serverConnections";
 import { connectionFromBody, errorResponse } from "@/lib/apiConnection";
 import { normalizeRewrites } from '../rewriteUtils';
+import { normalizeClients } from '../clientUtils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,7 @@ const ENDPOINTS: Record<string, string> = {
   tls: `/control/tls/status`,
   querylogConfig: `/control/querylog/config`,
   statsConfig: `/control/stats/config`,
+  clients: `/control/clients`,
 };
 
 /**
@@ -56,6 +58,8 @@ export async function POST(req: NextRequest) {
             let data = JSON.parse(r.body || '{}');
             if (key === 'rewrites' && Array.isArray(data)) {
               data = normalizeRewrites(data);
+            } else if (key === 'clients') {
+              data = normalizeClients(data);
             }
             results[key] = data;
           } catch {

@@ -1,5 +1,20 @@
 # ✨ What's New in AdGuard Buddy ✨
 
+**October 4, 2026 - Persistent client sync**
+
+## 👥 Persistent clients are now synced
+
+- **New sync category** - "Persistent clients" copies the named devices from *Settings → Client settings* to your replicas, together with their own filtering, parental control, SafeSearch, blocked services and schedules, upstreams and tags.
+- **Full mirror** - Missing clients are added, changed ones are replaced and clients that only exist on a replica are removed, so a device keeps its rules whichever server it asks.
+- **Drift view** - Sync status lists each missing, extra or changed client and the exact fields that differ.
+- **Mixed versions** - Fields only one AdGuard Home version knows about are ignored instead of showing up as permanent drift.
+- **Opt-in for auto-sync** - Enable it under *Settings → Automatic sync*. It is off by default because it deletes clients on replicas that the master does not have.
+- **Runtime clients stay local** - Clients discovered via ARP, DHCP or rDNS are not synced; AdGuard Home rebuilds them on every server.
+
+---
+
+# ✨ What's New in AdGuard Buddy ✨
+
 **September 2, 2026 - Redesign & credential hardening**
 
 ## 🔐 Credentials never reach the browser

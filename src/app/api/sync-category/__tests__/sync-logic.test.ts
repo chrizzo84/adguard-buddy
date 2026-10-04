@@ -291,6 +291,89 @@ describe('performCategorySync', () => {
     });
   });
 
+  describe('clients', () => {
+    const client = (name: string, overrides: Record<string, unknown> = {}) => ({
+      name,
+      ids: [`${name}.lan`],
+      use_global_settings: true,
+      filtering_enabled: true,
+      blocked_services: null,
+      ...overrides,
+    });
+
+    it('adds missing clients and removes extra ones', async () => {
+      route({
+        clients: isSource => ok({
+          clients: isSource ? [client('keep'), client('new')] : [client('keep'), client('stale')],
+          auto_clients: [{ ip: '10.0.0.9', name: 'runtime', source: 'arp' }],
+        }),
+        'clients/add': () => ok({}),
+        'clients/delete': () => ok({}),
+      });
+
+      await performCategorySync(SOURCE, DEST, 'clients', log);
+
+      expect(callsTo('clients/delete').map(([opts]) => JSON.parse(opts.body as string)))
+        .toEqual([{ name: 'stale' }]);
+      expect(callsTo('clients/add').map(([opts]) => JSON.parse(opts.body as string)))
+        .toEqual([{ ...client('new'), blocked_services: [] }]);
+    });
+
+    it('replaces a changed client by deleting before adding', async () => {
+      route({
+        clients: isSource => ok({
+          clients: [client('tablet', { parental_enabled: isSource })],
+        }),
+        'clients/add': () => ok({}),
+        'clients/delete': () => ok({}),
+      });
+
+      await performCategorySync(SOURCE, DEST, 'clients', log);
+
+      const order = mockHttpRequest.mock.calls
+        .map(([opts]) => opts.url.split('/control/')[1])
+        .filter(endpoint => endpoint !== 'clients');
+      expect(order).toEqual(['clients/delete', 'clients/add']);
+      expect(JSON.parse(callsTo('clients/add')[0][0].body as string).parental_enabled).toBe(true);
+    });
+
+    it('leaves clients alone that only differ in runtime or version-specific fields', async () => {
+      route({
+        clients: isSource => ok({
+          clients: [isSource
+            ? client('tv', { whois_info: { country: 'DE' } })
+            : client('tv', { blocked_services: [], upstreams_cache_enabled: false, disallowed: false })],
+        }),
+      });
+
+      await performCategorySync(SOURCE, DEST, 'clients', log);
+
+      expect(callsTo('clients/add')).toHaveLength(0);
+      expect(callsTo('clients/delete')).toHaveLength(0);
+    });
+
+    it('tolerates a null client list', async () => {
+      route({
+        clients: isSource => ok({ clients: isSource ? [client('a')] : null }),
+        'clients/add': () => ok({}),
+      });
+
+      await performCategorySync(SOURCE, DEST, 'clients', log);
+
+      expect(callsTo('clients/add')).toHaveLength(1);
+    });
+
+    it('throws when a client cannot be added', async () => {
+      route({
+        clients: isSource => ok({ clients: isSource ? [client('a')] : [] }),
+        'clients/add': () => fail(400, 'duplicate'),
+      });
+
+      await expect(performCategorySync(SOURCE, DEST, 'clients', log))
+        .rejects.toThrow(/Failed to add client a/);
+    });
+  });
+
   describe('dnsSettings', () => {
     const dnsInfo = (overrides: Record<string, unknown> = {}) => ({
       upstream_dns: ['1.1.1.1'],

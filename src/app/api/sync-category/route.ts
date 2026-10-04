@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export const SYNC_CATEGORIES = [
     'filtering', 'querylogConfig', 'statsConfig', 'dnsSettings',
-    'rewrites', 'blockedServices', 'accessList',
+    'rewrites', 'blockedServices', 'accessList', 'clients',
 ] as const;
 
 const createStreamingResponse = (

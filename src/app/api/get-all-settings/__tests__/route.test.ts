@@ -28,7 +28,7 @@ describe('POST /api/get-all-settings', () => {
     const data = await (await POST(request({ connectionId: '10.0.0.5:80' }))).json();
 
     expect(Object.keys(data.settings)).toEqual(expect.arrayContaining([
-      'status', 'filtering', 'dnsSettings', 'rewrites', 'blockedServices', 'accessList',
+      'status', 'filtering', 'dnsSettings', 'rewrites', 'blockedServices', 'accessList', 'clients',
     ]));
     expect(data.errors).toEqual({});
   });

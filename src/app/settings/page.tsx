@@ -55,6 +55,7 @@ const CATEGORIES: { value: SyncCategory; label: string; description: string }[] 
   { value: 'rewrites', label: 'DNS rewrites', description: 'Custom domain to address mappings' },
   { value: 'blockedServices', label: 'Blocked services', description: 'Service-level blocks' },
   { value: 'accessList', label: 'Access lists', description: 'Allowed and disallowed clients' },
+  { value: 'clients', label: 'Persistent clients', description: 'Named devices with their own settings' },
 ];
 
 function relativeTime(timestamp: number | null): string {

@@ -32,6 +32,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   rewrites: 'DNS rewrites',
   blockedServices: 'Blocked services',
   accessList: 'Access lists',
+  clients: 'Persistent clients',
 };
 
 function relativeTime(timestamp: number | null): string {

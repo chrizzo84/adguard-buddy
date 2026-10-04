@@ -154,6 +154,27 @@ describe('diffCategory', () => {
     });
   });
 
+  describe('clients', () => {
+    const tablet = { name: 'Tablet', ids: ['10.0.0.5'], parental_enabled: true };
+
+    it('lists missing, extra and changed clients', () => {
+      const diffs = diffCategory('clients',
+        [tablet, { name: 'TV', ids: ['10.0.0.6'] }],
+        [{ ...tablet, parental_enabled: false }, { name: 'Old', ids: ['10.0.0.7'] }]);
+      expect(diffs).toEqual([
+        { name: 'Tablet', masterVal: 'parental_enabled: true', targetVal: 'parental_enabled: false', type: 'changed' },
+        { name: 'TV', masterVal: '10.0.0.6', targetVal: 'Missing', type: 'missing' },
+        { name: 'Old', masterVal: 'Missing', targetVal: '10.0.0.7', type: 'extra' },
+      ]);
+    });
+
+    it('ignores fields only one side reports', () => {
+      expect(diffCategory('clients', [tablet], [{ ...tablet, upstreams_cache_size: 0 }])).toEqual([]);
+      expect(driftedCategories({ clients: [tablet] }, { clients: [{ ...tablet, upstreams_cache_size: 0 }] }))
+        .toEqual([]);
+    });
+  });
+
   describe('blockedServices', () => {
     it('handles the plain array shape', () => {
       const diffs = diffCategory('blockedServices', ['facebook'], []);

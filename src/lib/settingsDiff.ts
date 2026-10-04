@@ -25,7 +25,7 @@ export type DiffItem = {
 /** Categories AdGuard Buddy can push from the master to a replica. */
 export const SYNCABLE_CATEGORIES = [
   'filtering', 'querylogConfig', 'statsConfig', 'dnsSettings',
-  'rewrites', 'blockedServices', 'accessList',
+  'rewrites', 'blockedServices', 'accessList', 'clients',
 ] as const;
 
 /** Volatile or instance-specific keys that must not count as drift. */
@@ -91,12 +91,22 @@ export function areSettingsEqual(a: SettingsValue, b: SettingsValue): boolean {
   return true;
 }
 
+/**
+ * Fields that differ between two persistent clients. Only fields reported by
+ * both sides count: a field one AdGuard version lacks cannot be synced, so it
+ * would otherwise show up as permanent drift.
+ */
+export function changedClientFields(a: Settings, b: Settings): string[] {
+  return Object.keys(a).filter(key => key in b && !areSettingsEqual(a[key], b[key]));
+}
+
 /** Which of the syncable categories differ between master and replica. */
 export function driftedCategories(master: Settings, target: Settings): string[] {
   return SYNCABLE_CATEGORIES.filter(key => {
     const m = master[key];
     const t = target[key];
     if ((m === undefined || m === null) && (t === undefined || t === null)) return false;
+    if (key === 'clients') return diffCategory(key, m ?? null, t ?? null).length > 0;
     return !areSettingsEqual(m, t);
   });
 }
@@ -204,6 +214,37 @@ export function diffCategory(category: string, masterData: SettingsValue, target
     target.forEach(rewrite => {
       if (!masterKeys.has(`${rewrite.domain}->${rewrite.answer}`)) {
         diffs.push({ name: rewrite.domain, masterVal: 'Missing', targetVal: rewrite.answer, type: 'extra' });
+      }
+    });
+    return diffs;
+  }
+
+  if (category === 'clients') {
+    const master = (Array.isArray(masterData) ? masterData : []) as Settings[];
+    const target = (Array.isArray(targetData) ? targetData : []) as Settings[];
+    const targetByName = new Map(target.map(c => [c.name, c]));
+    const masterNames = new Set(master.map(c => c.name));
+    const ids = (client: Settings) => (Array.isArray(client.ids) ? client.ids.join(', ') : '');
+
+    master.forEach(client => {
+      const counterpart = targetByName.get(client.name);
+      if (!counterpart) {
+        diffs.push({ name: String(client.name), masterVal: ids(client), targetVal: 'Missing', type: 'missing' });
+        return;
+      }
+      const changedFields = changedClientFields(client, counterpart);
+      if (changedFields.length > 0) {
+        diffs.push({
+          name: String(client.name),
+          masterVal: changedFields.map(key => `${key}: ${JSON.stringify(client[key] ?? null)}`).join('; '),
+          targetVal: changedFields.map(key => `${key}: ${JSON.stringify(counterpart[key] ?? null)}`).join('; '),
+          type: 'changed',
+        });
+      }
+    });
+    target.forEach(client => {
+      if (!masterNames.has(client.name)) {
+        diffs.push({ name: String(client.name), masterVal: 'Missing', targetVal: ids(client), type: 'extra' });
       }
     });
     return diffs;

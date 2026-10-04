@@ -2,6 +2,10 @@ import { components } from "../../../types/adguard";
 import { httpRequest } from '../../lib/httpRequest';
 import { getConnectionDisplayName, type Connection } from '@/lib/connectionUtils';
 import { normalizeRewrites } from '../rewriteUtils';
+import { normalizeClients } from '../clientUtils';
+import { changedClientFields, type Settings } from '@/lib/settingsDiff';
+
+type Client = components['schemas']['Client'];
 
 type Filter = {
     url: string;
@@ -301,6 +305,63 @@ export async function performCategorySync(
             }
         }
         log(`<- Rewrites sync completed.`);
+    } else if (category === 'clients') {
+        log(`-> Fetching persistent clients from master: ${sourceName}`);
+        const masterRes = await fetchApi(sourceConnection, 'clients');
+        if (!masterRes.ok) throw new Error(`Failed to fetch clients from master ${sourceName}`);
+        const masterClients = normalizeClients(await masterRes.json());
+        log(`<- Fetched ${masterClients.length} clients successfully.`);
+
+        log(`-> Fetching persistent clients from replica: ${destName}`);
+        const replicaRes = await fetchApi(destinationConnection, 'clients');
+        if (!replicaRes.ok) throw new Error(`Failed to fetch clients from replica ${destName}`);
+        const replicaClients = normalizeClients(await replicaRes.json());
+        log(`<- Fetched ${replicaClients.length} clients successfully.`);
+
+        const masterByName = new Map(masterClients.map(c => [c.name, c]));
+        const replicaByName = new Map(replicaClients.map(c => [c.name, c]));
+        const isChanged = (client: Client) => {
+            const counterpart = masterByName.get(client.name);
+            return counterpart !== undefined && changedClientFields(client as Settings, counterpart as Settings).length > 0;
+        };
+
+        // Changed clients are deleted and re-added instead of updated in place:
+        // an identifier that moved from one client to another would otherwise
+        // be rejected as a duplicate until the old owner is updated too.
+        for (const client of replicaClients) {
+            const extra = !masterByName.has(client.name);
+            if (!extra && !isChanged(client)) continue;
+
+            log(extra ? `   - Removing client: ${client.name}` : `   * Replacing changed client: ${client.name}`);
+            const deleteRes = await fetchApi(destinationConnection, 'clients/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: client.name }),
+            });
+            if (!deleteRes.ok) {
+                const errorText = await deleteRes.text();
+                log(`   - FAILED to remove client ${client.name}: ${deleteRes.status} ${errorText}`);
+                throw new Error(`Failed to remove client ${client.name} from replica ${destName}`);
+            }
+            replicaByName.delete(client.name);
+        }
+
+        for (const client of masterClients) {
+            if (replicaByName.has(client.name)) continue;
+
+            log(`   + Adding client: ${client.name} (${(client.ids ?? []).join(', ')})`);
+            const addRes = await fetchApi(destinationConnection, 'clients/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(client),
+            });
+            if (!addRes.ok) {
+                const errorText = await addRes.text();
+                log(`   + FAILED to add client ${client.name}: ${addRes.status} ${errorText}`);
+                throw new Error(`Failed to add client ${client.name} to replica ${destName}`);
+            }
+        }
+        log(`<- Clients sync completed.`);
     } else if (category === 'dnsSettings') {
         log(`-> Fetching DNS settings from master: ${sourceName}`);
         const masterRes = await fetchApi(sourceConnection, 'dns_info');
