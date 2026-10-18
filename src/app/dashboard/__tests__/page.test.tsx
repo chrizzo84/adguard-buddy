@@ -80,6 +80,26 @@ describe('Dashboard', () => {
     expect(screen.getByText('Active')).toBeInTheDocument();
   });
 
+  it('labels the trend as 24h for hourly statistics', async () => {
+    global.fetch = jest.fn().mockResolvedValue(mockCheckResponse({
+      stats: { ...STATS, time_units: 'hours' },
+    }));
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByLabelText('Query trend for 192.168.1.1:80, last 24 hours')).toBeInTheDocument();
+    expect(screen.getByText('24h')).toBeInTheDocument();
+  });
+
+  it('shows the last 7 days instead of 24 buckets for daily statistics', async () => {
+    global.fetch = jest.fn().mockResolvedValue(mockCheckResponse({
+      stats: { ...STATS, time_units: 'days', dns_queries: Array.from({ length: 90 }, (_, i) => i) },
+    }));
+    renderWithProviders(<Dashboard />);
+
+    expect(await screen.findByLabelText('Query trend for 192.168.1.1:80, last 7 days')).toBeInTheDocument();
+    expect(screen.getByText('7d')).toBeInTheDocument();
+  });
+
   it('warns when a server has protection disabled', async () => {
     (global.fetch as jest.Mock).mockResolvedValue(mockCheckResponse({
       response: JSON.stringify({ ...STATUS, protection_enabled: false }),

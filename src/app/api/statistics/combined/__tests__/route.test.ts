@@ -431,4 +431,54 @@ describe('/api/statistics/combined', () => {
     expect(result.top_queried_domains[1]).toEqual({ 'youtube.com': 30 });
     expect(result.top_queried_domains[2]).toEqual({ 'facebook.com': 20 });
   });
+
+  describe('time units', () => {
+    const twoServers = { connections: [{ ip: '192.168.1.1', port: 80 }, { ip: '192.168.1.2', port: 80 }] };
+
+    function serve(stats1: Record<string, unknown>, stats2: Record<string, unknown>) {
+      mockResolveAll.mockResolvedValue(resolved(twoServers) as never);
+      mockHttpRequest.mockImplementation((opts: any) => Promise.resolve({
+        statusCode: 200,
+        headers: {},
+        body: JSON.stringify(opts.url.includes('192.168.1.1') ? stats1 : stats2),
+      }));
+    }
+
+    it('reports days when every server keeps daily buckets', async () => {
+      serve(
+        { time_units: 'days', dns_queries: [1, 2, 3] },
+        { time_units: 'days', dns_queries: [10, 20] },
+      );
+
+      const result = await (await GET()).json();
+
+      expect(result.time_units).toBe('days');
+      expect(result.dns_queries_arr).toEqual([1, 12, 23]);
+    });
+
+    it('keeps hours when every server reports hourly buckets', async () => {
+      serve(
+        { time_units: 'hours', dns_queries: [1, 2] },
+        { time_units: 'hours', dns_queries: [3, 4] },
+      );
+
+      const result = await (await GET()).json();
+
+      expect(result.time_units).toBe('hours');
+      expect(result.dns_queries_arr).toEqual([4, 6]);
+    });
+
+    it('rolls hourly servers up into days when units are mixed', async () => {
+      serve(
+        { time_units: 'hours', dns_queries: new Array(24).fill(1), blocked_filtering: new Array(24).fill(1) },
+        { time_units: 'days', dns_queries: [100, 200], blocked_filtering: [10, 20] },
+      );
+
+      const result = await (await GET()).json();
+
+      expect(result.time_units).toBe('days');
+      expect(result.dns_queries_arr).toEqual([100, 224]);
+      expect(result.blocked_filtering_arr).toEqual([10, 44]);
+    });
+  });
 });

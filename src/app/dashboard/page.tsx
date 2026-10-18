@@ -284,7 +284,7 @@ export default function Dashboard() {
                   <th scope="col">Protection</th>
                   <th scope="col" className="num">Queries</th>
                   <th scope="col" className="num">Blocked</th>
-                  <th scope="col">Last 24h</th>
+                  <th scope="col">Trend</th>
                   <th scope="col" className="text-right">Action</th>
                 </tr>
               </thead>
@@ -322,7 +322,10 @@ function ServerRow({
   const protectionOn = info?.protection_enabled ?? false;
   const queries = stats?.num_dns_queries || 0;
   const blocked = stats?.num_blocked_filtering || 0;
-  const trend = Array.isArray(stats?.dns_queries) ? stats!.dns_queries!.slice(-24) : [];
+  // Daily buckets when the server keeps statistics for longer than 24h.
+  const daily = stats?.time_units === 'days';
+  const trend = Array.isArray(stats?.dns_queries) ? stats!.dns_queries!.slice(daily ? -7 : -24) : [];
+  const trendSpan = daily ? 'last 7 days' : 'last 24 hours';
 
   return (
     <>
@@ -366,9 +369,12 @@ function ServerRow({
           ) : '—'}
         </td>
         <td>
-          {trend.length > 1
-            ? <Sparkline values={trend} ariaLabel={`Query trend for ${connection.id}`} />
-            : <span className="text-[var(--text-subtle)]">—</span>}
+          {trend.length > 1 ? (
+            <span className="flex items-center gap-2" title={`Queries, ${trendSpan}`}>
+              <Sparkline values={trend} ariaLabel={`Query trend for ${connection.id}, ${trendSpan}`} />
+              <span className="text-[12px] text-[var(--text-subtle)]">{daily ? '7d' : '24h'}</span>
+            </span>
+          ) : <span className="text-[var(--text-subtle)]">—</span>}
         </td>
         <td className="text-right">
           {info && (

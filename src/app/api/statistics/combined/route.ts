@@ -8,6 +8,7 @@ import {
     resolveAllConnections,
     type ResolvedConnection,
 } from "@/lib/serverConnections";
+import { hoursToDays, sumAlignedAtEnd } from "./series";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ type StatsData = {
     num_blocked_filtering: number;
     num_replaced_safebrowsing: number;
     num_replaced_parental: number;
-    // Hourly data arrays (from AdGuard API)
+    // Time series from the AdGuard API, in buckets of `time_units`
     dns_queries_arr?: number[];
     blocked_filtering_arr?: number[];
     replaced_safebrowsing_arr?: number[];
@@ -76,6 +77,8 @@ async function fetchStatsForServer(connection: ResolvedConnection): Promise<Stat
     }
 }
 
+type SeriesKey = 'dns_queries_arr' | 'blocked_filtering_arr' | 'replaced_safebrowsing_arr' | 'replaced_parental_arr';
+
 function aggregateStats(statsList: StatsData[]): StatsData {
     const combined: StatsData = {
         avg_processing_time: 0,
@@ -103,26 +106,22 @@ function aggregateStats(statsList: StatsData[]): StatsData {
     combined.num_replaced_safebrowsing = statsList.reduce((sum, stats) => sum + (stats.num_replaced_safebrowsing || 0), 0);
     combined.num_replaced_parental = statsList.reduce((sum, stats) => sum + (stats.num_replaced_parental || 0), 0);
 
-    // Aggregate hourly arrays by summing values at each index
-    const aggregateHourlyArray = (key: 'dns_queries_arr' | 'blocked_filtering_arr' | 'replaced_safebrowsing_arr' | 'replaced_parental_arr'): number[] => {
-        // Find the max length among all servers
-        const maxLen = Math.max(...statsList.map(s => s[key]?.length || 0), 0);
-        if (maxLen === 0) return [];
+    // AdGuard Home reports hourly buckets for a 24h retention and daily ones
+    // for anything longer. When servers disagree, hourly series are rolled up
+    // into days so that every bucket covers the same span before summing.
+    const unit = statsList.some(stats => stats.time_units === 'days') ? 'days' : 'hours';
+    combined.time_units = unit;
 
-        const result: number[] = new Array(maxLen).fill(0);
-        for (const stats of statsList) {
+    const aggregateSeries = (key: SeriesKey): number[] =>
+        sumAlignedAtEnd(statsList.map(stats => {
             const arr = stats[key] || [];
-            for (let i = 0; i < arr.length; i++) {
-                result[i] += arr[i] || 0;
-            }
-        }
-        return result;
-    };
+            return unit === 'days' && stats.time_units !== 'days' ? hoursToDays(arr) : arr;
+        }));
 
-    combined.dns_queries_arr = aggregateHourlyArray('dns_queries_arr');
-    combined.blocked_filtering_arr = aggregateHourlyArray('blocked_filtering_arr');
-    combined.replaced_safebrowsing_arr = aggregateHourlyArray('replaced_safebrowsing_arr');
-    combined.replaced_parental_arr = aggregateHourlyArray('replaced_parental_arr');
+    combined.dns_queries_arr = aggregateSeries('dns_queries_arr');
+    combined.blocked_filtering_arr = aggregateSeries('blocked_filtering_arr');
+    combined.replaced_safebrowsing_arr = aggregateSeries('replaced_safebrowsing_arr');
+    combined.replaced_parental_arr = aggregateSeries('replaced_parental_arr');
 
     // Weighted average for processing time
     if (totalDnsQueries > 0) {
