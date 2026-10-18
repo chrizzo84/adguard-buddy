@@ -1,6 +1,6 @@
 # ✨ What's New in AdGuard Buddy ✨
 
-**October 4, 2026 - Persistent client sync**
+**October 18, 2026 - v0.1.20261018**
 
 ## 👥 Persistent clients are now synced
 
@@ -10,6 +10,12 @@
 - **Mixed versions** - Fields only one AdGuard Home version knows about are ignored instead of showing up as permanent drift.
 - **Opt-in for auto-sync** - Enable it under *Settings → Automatic sync*. It is off by default because it deletes clients on replicas that the master does not have.
 - **Runtime clients stay local** - Clients discovered via ARP, DHCP or rDNS are not synced; AdGuard Home rebuilds them on every server.
+
+## 🐛 Fixes
+
+- **Statistics with long retention** - With a retention above 24h AdGuard Home reports daily buckets. Combined statistics now show "Queries per day" with date labels instead of labelling each day as an hour.
+- **Mixed retention** - When servers keep statistics for different periods, hourly data is rolled up into days before it is combined, and series are aligned at the most recent bucket.
+- **Dashboard trend** - Shows the last 7 days for servers with daily statistics instead of 24 days under a "24h" label; each row says whether it is "24h" or "7d".
 
 ---
 
